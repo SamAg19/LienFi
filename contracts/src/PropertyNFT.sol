@@ -3,7 +3,6 @@
 pragma solidity ^0.8.24;
 
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-
 /**
  * @title PropertyNFT
  * @author LienFi Team
@@ -23,7 +22,6 @@ contract PropertyNFT is ERC721 {
 
     constructor() ERC721("LienFi Property", "PROP") {}
 
-    /// @notice Mint a property NFT. The metadataHash is the keccak256 of the property details.
     function mint(bytes32 metadataHash) external returns (uint256 tokenId) {
         tokenId = _nextTokenId++;
         _tokenMetadataHashes[tokenId] = metadataHash;
@@ -31,7 +29,6 @@ contract PropertyNFT is ERC721 {
         emit PropertyMinted(tokenId, msg.sender, metadataHash);
     }
 
-    /// @notice Returns the property details hash stored as metadata for this token.
     function tokenMetadataHash(uint256 tokenId) external view returns (bytes32) {
         _requireOwned(tokenId);
         return _tokenMetadataHashes[tokenId];

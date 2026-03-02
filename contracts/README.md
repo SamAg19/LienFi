@@ -1,66 +1,64 @@
-## Foundry
+# LienFi Contracts
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+Smart contracts for the LienFi protocol - a privacy-preserving mortgage system on Ethereum.
 
-Foundry consists of:
+## Deployed Addresses (Sepolia)
 
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+| Contract | Address |
+|----------|---------|
+| MockWorldIDRouter | `0xA7E7b0F92583f30841e07E96Bcda87Ec83c8B7F1` |
+| MockUSDC | `0x17e822bAF7c8d7e0583103eF01F411BC6E9FA1E2` |
+| PropertyNFT | `0xF9E84941A1D2868CcD1dF95Be040C14C0b7D82cB` |
+| clUSDC | `0xCB155F43443D352771A7E62d8095Fc2bC07844AB` |
+| LendingPool | `0xA82FcBa5a703a0d7d791c5b075300CbCAc9a4Aac` |
+| LienFiAuction | `0x72845CfA0a560d1AB8E25c8df2801c413f993EC8` |
+| LoanManager | `0x01b4bdeE19f0cd17F96cEE141961f5CCae57Ec9d` |
+| Forwarder | `0xf6aC8a8715024fE9Ff592D6A3f186E2B502B356a` |
 
-## Documentation
+## Configuration
 
-https://book.getfoundry.sh/
+- Interest Rate: 800 bps (8%)
+- Chain ID: 11155111 (Sepolia)
 
 ## Usage
 
 ### Build
 
 ```shell
-$ forge build
+forge build
 ```
 
 ### Test
 
 ```shell
-$ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
+forge test
 ```
 
 ### Deploy
 
 ```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+source .env && forge script script/DeployLienFi.s.sol --rpc-url $SEPOLIA_RPC_URL --broadcast
 ```
 
-### Cast
+## Environment Variables
 
-```shell
-$ cast <subcommand>
-```
+Create a `.env` file with:
 
-### Help
+```env
+PRIVATE_KEY=0x...
+SEPOLIA_RPC_URL=https://...
+WORLD_ID_APP_ID=app_staging_test
+CHAINLINK_FORWARDER_ADDRESS=0x...  # Optional, defaults to deployer
+INTEREST_RATE_BPS=800              # Optional, defaults to 800
 
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
+# Deployed Contract Addresses (Sepolia)
+MOCK_WORLD_ID_ADDRESS=0xA7E7b0F92583f30841e07E96Bcda87Ec83c8B7F1
+MOCK_USDC_ADDRESS=0x17e822bAF7c8d7e0583103eF01F411BC6E9FA1E2
+PROPERTY_NFT_ADDRESS=0xF9E84941A1D2868CcD1dF95Be040C14C0b7D82cB
+CL_USDC_ADDRESS=0xCB155F43443D352771A7E62d8095Fc2bC07844AB
+LENDING_POOL_ADDRESS=0xA82FcBa5a703a0d7d791c5b075300CbCAc9a4Aac
+LIENFI_AUCTION_ADDRESS=0x72845CfA0a560d1AB8E25c8df2801c413f993EC8
+LOAN_MANAGER_ADDRESS=0x01b4bdeE19f0cd17F96cEE141961f5CCae57Ec9d
+FORWARDER_ADDRESS=0xf6aC8a8715024fE9Ff592D6A3f186E2B502B356a
+INTEREST_RATE_BPS=800
 ```
