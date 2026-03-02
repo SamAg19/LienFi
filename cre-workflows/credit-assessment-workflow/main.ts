@@ -1,6 +1,7 @@
 import {
   EVMClient,
   ConfidentialHTTPClient,
+  HTTPClient,
   getNetwork,
   encodeCallMsg,
   hexToBase64,
@@ -12,12 +13,14 @@ import {
   ok,
   json,
   type ConfidentialHTTPSendRequester,
+  type HTTPSendRequester,
   type Runtime,
   Runner,
   type EVMLog,
 } from "@chainlink/cre-sdk"
 import {
   encodeAbiParameters,
+  decodeAbiParameters,
   parseAbiParameters,
   encodeFunctionData,
   decodeFunctionResult,
@@ -88,10 +91,8 @@ type PlaidMetrics = {
 }
 
 type AnthropicVerdict = {
-  creditScore: number
   verdict: "approve" | "reject"
   approvedAmount: string
-  reason: string
 }
 
 // ─── Confidential HTTP helpers ───────────────────────────────────────────────
@@ -212,8 +213,7 @@ const fetchPlaidData = (
  * Sends only pre-processed metrics — never raw financial data.
  */
 const callAnthropicScoring = (
-  sendRequester: ConfidentialHTTPSendRequester,
-  config: Config,
+  sendRequester: HTTPSendRequester,
   metrics: {
     monthlyIncome: number
     emi: number
@@ -235,19 +235,22 @@ Metrics:
 - Loan-to-Value Ratio: ${(metrics.ltv * 100).toFixed(1)}%
 - Income Stability Score: ${(metrics.stabilityScore * 100).toFixed(0)}%
 - Overdraft Rate: ${(metrics.overdraftRate * 100).toFixed(1)}%
-- Requested Amount: $${(Number(metrics.requestedAmount) / 1e6).toFixed(2)}
+- Requested Amount: $${(Number(metrics.requestedAmount) / 1e6).toFixed(2)} (USDC 6-decimal: ${metrics.requestedAmount})
+
+Rules:
+- approvedAmount MUST be less than or equal to ${metrics.requestedAmount} (the requested amount in USDC 6-decimal format)
+- If rejected, approvedAmount must be "0"
 
 Respond ONLY with valid JSON (no markdown, no explanation):
 {
-  "creditScore": <number 300-850>,
   "verdict": "approve" or "reject",
-  "approvedAmount": "<USDC 6-decimal string, 0 if rejected>",
-  "reason": "<one sentence>"
+  "approvedAmount": "<USDC 6-decimal string, must be <= ${metrics.requestedAmount}>"
 }`
 
   const body = JSON.stringify({
     model: "claude-sonnet-4-6",
     max_tokens: 256,
+    temperature: 0,
     messages: [
       {
         role: "user",
@@ -258,20 +261,14 @@ Respond ONLY with valid JSON (no markdown, no explanation):
 
   const response = sendRequester
     .sendRequest({
-      request: {
-        url: "https://api.anthropic.com/v1/messages",
-        method: "POST",
-        bodyString: body,
-        multiHeaders: {
-          "Content-Type": { values: ["application/json"] },
-          "x-api-key": { values: ["{{.anthropicApiKey}}"] },
-          "anthropic-version": { values: ["2023-06-01"] },
-        },
+      url: "https://api.anthropic.com/v1/messages",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": "{{.anthropicApiKey}}",
+        "anthropic-version": "2023-06-01",
       },
-      vaultDonSecrets: [
-        { key: "anthropicApiKey", owner: config.owner },
-        { key: "san_marino_aes_gcm_encryption_key", owner: config.owner },
-      ],
+      body: body,
     })
     .result()
 
@@ -287,7 +284,14 @@ Respond ONLY with valid JSON (no markdown, no explanation):
     throw new Error("Anthropic response missing text content")
   }
 
-  return JSON.parse(textContent.text) as AnthropicVerdict
+  const parsed = JSON.parse(textContent.text) as AnthropicVerdict
+
+  // Clamp approvedAmount to requestedAmount — never approve more than requested
+  if (parsed.verdict === "approve" && BigInt(parsed.approvedAmount) > BigInt(metrics.requestedAmount)) {
+    parsed.approvedAmount = metrics.requestedAmount
+  }
+
+  return parsed
 }
 
 // ─── EMI computation ─────────────────────────────────────────────────────────
@@ -316,11 +320,14 @@ const onLoanRequestSubmitted = (runtime: Runtime<Config>, log: EVMLog): string =
   // 1. DECODE EVENT from EVMLog
   //    topics[0] = event signature (already matched by trigger)
   //    topics[1] = borrower address (indexed, left-padded to 32 bytes)
-  //    topics[2] = requestHash (indexed, bytes32)
+  //    data = ABI-encoded non-indexed params (bytes32 requestHash)
   const borrower = getAddress(
     bytesToHex(log.topics[1].slice(12)) // last 20 bytes = address
   )
-  const requestHash = bytesToHex(log.topics[2])
+  const [requestHash] = decodeAbiParameters(
+    parseAbiParameters("bytes32 requestHash"),
+    bytesToHex(log.data) as `0x${string}`
+  )
 
   runtime.log(`LoanRequestSubmitted: borrower=${borrower} requestHash=${requestHash}`)
 
@@ -429,13 +436,14 @@ const onLoanRequestSubmitted = (runtime: Runtime<Config>, log: EVMLog): string =
     })
   }
 
-  // 8. CALL ANTHROPIC AI for credit scoring via Confidential HTTP
-  const aiVerdict = confHTTPClient
+  // 8. CALL ANTHROPIC AI for credit scoring via HTTP (non-confidential — only metrics sent)
+  const httpClient = new HTTPClient()
+  const aiVerdict = httpClient
     .sendRequest(
       runtime,
       callAnthropicScoring,
       consensusIdenticalAggregation<AnthropicVerdict>()
-    )(runtime.config, {
+    )({
       monthlyIncome: plaidMetrics.monthlyIncome,
       emi,
       coverage: incomeCoverage,
@@ -448,7 +456,7 @@ const onLoanRequestSubmitted = (runtime: Runtime<Config>, log: EVMLog): string =
     .result()
 
   runtime.log(
-    `Anthropic verdict: score=${aiVerdict.creditScore} verdict=${aiVerdict.verdict} approved=${aiVerdict.approvedAmount} reason="${aiVerdict.reason}"`
+    `Anthropic verdict: verdict=${aiVerdict.verdict} approvedAmount=${aiVerdict.approvedAmount}`
   )
 
   if (aiVerdict.verdict === "reject") {
@@ -547,17 +555,17 @@ function writeVerdict(
 
   const reportData = encodeAbiParameters(
     parseAbiParameters(
-      "address borrower, bytes32 requestHash, uint256 tokenId, uint256 approvedLimit, uint256 tenureMonths, uint256 computedEMI, uint256 expiresAt, bool approved"
+      "address borrower, bytes32 requestHash, bool approved, uint256 tokenId, uint256 approvedLimit, uint256 tenureMonths, uint256 computedEMI, uint256 expiresAt"
     ),
     [
       params.borrower as Address,
       params.requestHash as `0x${string}`,
+      params.approved,
       BigInt(params.tokenId),
       BigInt(params.approvedLimit),
       BigInt(params.tenureMonths),
       BigInt(params.computedEMI),
       BigInt(expiresAt),
-      params.approved,
     ]
   )
 

@@ -60,7 +60,7 @@ import {ILienFiAuction} from "./interfaces/ILienFiAuction.sol";
  * Privacy guarantees:
  * - No financial data ever touches this contract
  * - Only requestHash (opaque) and verdict (approve/reject + limit) are on-chain
- * - Credit score, Plaid data, Gemini reasoning all discarded in CRE enclave
+ * - Credit score, Plaid data, Anthropic reasoning all discarded in CRE enclave
  *
  * CRE workflow report encoding (credit-assessment-workflow):
  *   abi.encode(address borrower, bytes32 requestHash, bool approved,
