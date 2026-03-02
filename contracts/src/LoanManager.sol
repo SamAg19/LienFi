@@ -619,21 +619,6 @@ contract LoanManager is ReceiverTemplate, ReentrancyGuard {
         delete tokenIdToLoanId[tokenId];
     }
 
-    /// @notice Mint a PropertyNFT for the caller. Called after off-chain property verification.
-    /// @dev The borrower first calls POST /verify-property on the API, which:
-    ///        1. Verifies property documents inside CRE enclave
-    ///        2. Computes commitmentHash = keccak256(address + value + docs + secret)
-    ///        3. Stores full details in enclave (never on-chain)
-    ///        4. Returns commitmentHash to borrower
-    ///      Borrower then calls this function with the commitmentHash.
-    ///      The NFT is minted to the borrower — they own it until they lock it via claimLoan().
-    /// @param commitmentHash The keccak256 hash of property details (computed by CRE)
-    /// @return tokenId The minted PropertyNFT token ID
-    function mintPropertyNFT(
-        bytes32 commitmentHash
-    ) external returns (uint256 tokenId) {
-        tokenId = propertyNFT.mint(msg.sender, commitmentHash);
-    }
 
     // ═══════════════════════════════════════════════════════════════
     // INTERNAL FUNCTIONS

@@ -142,9 +142,6 @@ import {IWorldID} from "../src/interfaces/IWorldID.sol";
         lendingPool.setLoanManager(address(loanManager));
         console.log("  LendingPool.setLoanManager -> LoanManager");
 
-        // PropertyNFT: only LoanManager can mint new property NFTs
-        propertyNFT.setMinter(address(loanManager));
-        console.log("  PropertyNFT.setMinter -> LoanManager");
 
         vm.stopBroadcast();
 
