@@ -4,8 +4,8 @@
   "evms": [
     {
       "chainSelectorName": "ethereum-testnet-sepolia",
-      "loanManagerAddress": "0x0b5155a5F76073604FFCc1b21d6ae73f660701b0",
-      "lendingPoolAddress": "0x8E8F3bcad8Eb425f0Fb9168822609c92B5797eC7",
+      "loanManagerAddress": "0x9b99e44dbb463575ec35641b0380148C748F3268",
+      "lendingPoolAddress": "0x99967F4C7242c885C3A9cCa3700FE11DB7E1544b",
       "gasLimit": "500000"
     }
   ],

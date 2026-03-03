@@ -418,6 +418,7 @@ cre workflow simulate credit-assessment-workflow \
   --trigger-index 0 \
   --evm-tx-hash <TX_HASH_FROM_STEP_7.3> \
   --evm-event-index 0 \
+  --broadcast \
   --verbose
 ```
 
@@ -430,6 +431,7 @@ cre workflow simulate credit-assessment-workflow \
 | `--trigger-index 0` | Selects the first (only) trigger handler |
 | `--evm-tx-hash` | The transaction containing the `LoanRequestSubmitted` event |
 | `--evm-event-index 0` | Selects the first log event in the transaction |
+| `--broadcast` | Broadcasts `writeReport` transactions on-chain (triggers `onReport` on LoanManager) |
 | `--verbose` | Shows debug-level logs including step execution |
 
 ### 8.2 Wait for Sepolia Finalization
@@ -459,9 +461,9 @@ cast call <LENDING_POOL_ADDRESS> \
 # Should return 1000000000 [1e9], NOT 0
 ```
 
-### 8.3 Note on Verdict Transaction Hash
+### 8.3 Note on the `--broadcast` Flag
 
-The simulation output will show `txHash=0x000...000` (all zeros) for the verdict write. This is expected — the CRE **simulator** does not broadcast real transactions. In a real deployment on a Chainlink DON, the `writeReport` would produce a real transaction hash viewable on Etherscan.
+The `--broadcast` flag is required for `writeReport` to actually submit transactions on-chain during simulation. With it, the full end-to-end flow works: `writeReport` → `KeystoneForwarder` → `onReport()` on LoanManager → verdict stored on-chain. Without `--broadcast`, the txHash will be all zeros and no on-chain write occurs.
 
 ---
 
@@ -917,5 +919,6 @@ cre workflow simulate credit-assessment-workflow \
   --trigger-index 0 \
   --evm-tx-hash <TX_HASH_FROM_14.6_STEP_C> \
   --evm-event-index 0 \
+  --broadcast \
   --verbose
 ```
