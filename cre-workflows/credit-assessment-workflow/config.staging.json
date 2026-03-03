@@ -1,11 +1,11 @@
 {
-  "url": "https://lienfi.onrender.com",
+  "url": "https://sealbid.onrender.com",
   "owner": "0xf6aC8a8715024fE9Ff592D6A3f186E2B502B356a",
   "evms": [
     {
       "chainSelectorName": "ethereum-testnet-sepolia",
-      "loanManagerAddress": "TODO: 0x<LoanManager-address>",
-      "lendingPoolAddress": "TODO: 0x<LendingPool-address>",
+      "loanManagerAddress": "0x01b4bdeE19f0cd17F96cEE141961f5CCae57Ec9d",
+      "lendingPoolAddress": "0xA82FcBa5a703a0d7d791c5b075300CbCAc9a4Aac",
       "gasLimit": "500000"
     }
   ],

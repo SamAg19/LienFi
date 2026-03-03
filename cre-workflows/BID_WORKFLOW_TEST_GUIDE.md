@@ -152,7 +152,7 @@ Compiling workflow...
 You can test the API without CRE simulation:
 
 ```bash
-curl -X POST https://lienfi.onrender.com/bid \
+curl -X POST https://sealbid.onrender.com/bid \
   -H "Content-Type: application/json" \
   -H "X-Api-Key: <your-BID_API_KEY>" \
   -d @bid-payload.json

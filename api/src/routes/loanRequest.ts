@@ -122,7 +122,7 @@ router.post("/", (req: Request, res: Response): void => {
  * Includes appraisedValueUsd from the property store.
  */
 router.get("/:requestHash", (req: Request, res: Response): void => {
-  const { requestHash } = req.params;
+  const requestHash = req.params.requestHash as string;
 
   const request = getLoanRequest(requestHash);
   if (!request) {
