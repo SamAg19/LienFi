@@ -1,7 +1,6 @@
 import {
   EVMClient,
   ConfidentialHTTPClient,
-  HTTPClient,
   getNetwork,
   encodeCallMsg,
   hexToBase64,
@@ -13,7 +12,6 @@ import {
   ok,
   json,
   type ConfidentialHTTPSendRequester,
-  type HTTPSendRequester,
   type Runtime,
   Runner,
   type EVMLog,
@@ -90,7 +88,7 @@ type PlaidMetrics = {
   hasRecentDefaults: boolean
 }
 
-type AnthropicVerdict = {
+type CreditVerdict = {
   verdict: "approve" | "reject"
   approvedAmount: string
 }
@@ -209,11 +207,12 @@ const fetchPlaidData = (
 }
 
 /**
- * Call Anthropic Messages API for credit scoring via Confidential HTTP.
+ * Call Groq API (OpenAI-compatible) for credit scoring via Confidential HTTP.
  * Sends only pre-processed metrics — never raw financial data.
  */
-const callAnthropicScoring = (
-  sendRequester: HTTPSendRequester,
+const callGroqScoring = (
+  sendRequester: ConfidentialHTTPSendRequester,
+  config: Config,
   metrics: {
     monthlyIncome: number
     emi: number
@@ -224,31 +223,35 @@ const callAnthropicScoring = (
     overdraftRate: number
     requestedAmount: string
   }
-): AnthropicVerdict => {
-  const prompt = `You are a mortgage credit scoring AI. Based on these financial metrics, provide a credit assessment.
+): CreditVerdict => {
+  const prompt = `You are a mortgage credit scoring AI. Evaluate the following metrics and apply the approval criteria strictly.
 
 Metrics:
 - Monthly Income: $${metrics.monthlyIncome.toFixed(2)}
-- Monthly EMI: $${metrics.emi.toFixed(2)}
-- Income Coverage Ratio: ${metrics.coverage.toFixed(2)}×
+- Monthly EMI: $${(metrics.emi / 1e6).toFixed(2)}
+- Income Coverage Ratio: ${metrics.coverage.toFixed(2)}× (monthly income / EMI)
 - Debt-to-Income Ratio: ${(metrics.dti * 100).toFixed(1)}%
 - Loan-to-Value Ratio: ${(metrics.ltv * 100).toFixed(1)}%
 - Income Stability Score: ${(metrics.stabilityScore * 100).toFixed(0)}%
 - Overdraft Rate: ${(metrics.overdraftRate * 100).toFixed(1)}%
 - Requested Amount: $${(Number(metrics.requestedAmount) / 1e6).toFixed(2)} (USDC 6-decimal: ${metrics.requestedAmount})
 
-Rules:
-- approvedAmount MUST be less than or equal to ${metrics.requestedAmount} (the requested amount in USDC 6-decimal format)
-- If rejected, approvedAmount must be "0"
+Approval Criteria (approve if ALL are met):
+1. Income Coverage Ratio >= 3× (borrower can comfortably pay EMI)
+2. Debt-to-Income Ratio < 50%
+3. Loan-to-Value Ratio < 80%
+4. Overdraft Rate < 20%
 
-Respond ONLY with valid JSON (no markdown, no explanation):
-{
-  "verdict": "approve" or "reject",
-  "approvedAmount": "<USDC 6-decimal string, must be <= ${metrics.requestedAmount}>"
-}`
+If all criteria are met, verdict is "approve" and set approvedAmount to the requested amount.
+If any criterion fails, verdict is "reject" and set approvedAmount to "0".
+
+Output rules:
+- approvedAmount MUST be a string in USDC 6-decimal format, <= ${metrics.requestedAmount}
+- Respond ONLY with valid JSON (no markdown, no code blocks, no explanation):
+{"verdict": "approve" or "reject", "approvedAmount": "<USDC 6-decimal string>"}`
 
   const body = JSON.stringify({
-    model: "claude-sonnet-4-6",
+    model: "llama-3.3-70b-versatile",
     max_tokens: 256,
     temperature: 0,
     messages: [
@@ -261,30 +264,34 @@ Respond ONLY with valid JSON (no markdown, no explanation):
 
   const response = sendRequester
     .sendRequest({
-      url: "https://api.anthropic.com/v1/messages",
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": "{{.anthropicApiKey}}",
-        "anthropic-version": "2023-06-01",
+      request: {
+        url: "https://api.groq.com/openai/v1/chat/completions",
+        method: "POST",
+        multiHeaders: {
+          "Content-Type": { values: ["application/json"] },
+          "Authorization": { values: ["Bearer {{.groqApiKey}}"] },
+        },
+        bodyString: body,
       },
-      body: body,
+      vaultDonSecrets: [
+        { key: "groqApiKey", owner: config.owner },
+        { key: "san_marino_aes_gcm_encryption_key", owner: config.owner },
+      ],
     })
     .result()
 
   if (!ok(response)) {
-    throw new Error(`Anthropic API failed: ${response.statusCode}`)
+    throw new Error(`Groq API failed: ${response.statusCode}`)
   }
 
   const apiResult = json(response) as {
-    content: Array<{ type: string; text: string }>
+    choices: Array<{ message: { content: string } }>
   }
-  const textContent = apiResult.content.find((c) => c.type === "text")
-  if (!textContent) {
-    throw new Error("Anthropic response missing text content")
+  if (!apiResult.choices || apiResult.choices.length === 0) {
+    throw new Error("Groq response missing choices")
   }
 
-  const parsed = JSON.parse(textContent.text) as AnthropicVerdict
+  const parsed = JSON.parse(apiResult.choices[0].message.content) as CreditVerdict
 
   // Clamp approvedAmount to requestedAmount — never approve more than requested
   if (parsed.verdict === "approve" && BigInt(parsed.approvedAmount) > BigInt(metrics.requestedAmount)) {
@@ -408,7 +415,8 @@ const onLoanRequestSubmitted = (runtime: Runtime<Config>, log: EVMLog): string =
   )
 
   // 7. HARD RULE GATES (post-Plaid)
-  const incomeCoverage = plaidMetrics.monthlyIncome / emi
+  const emiUsd = emi / 1e6 // convert USDC 6-decimal to dollars
+  const incomeCoverage = plaidMetrics.monthlyIncome / emiUsd
 
   if (incomeCoverage < 3) {
     runtime.log(`REJECTED: Income coverage ${incomeCoverage.toFixed(2)}× below 3× minimum`)
@@ -436,14 +444,13 @@ const onLoanRequestSubmitted = (runtime: Runtime<Config>, log: EVMLog): string =
     })
   }
 
-  // 8. CALL ANTHROPIC AI for credit scoring via HTTP (non-confidential — only metrics sent)
-  const httpClient = new HTTPClient()
-  const aiVerdict = httpClient
+  // 8. CALL GROQ AI for credit scoring via Confidential HTTP
+  const aiVerdict = confHTTPClient
     .sendRequest(
       runtime,
-      callAnthropicScoring,
-      consensusIdenticalAggregation<AnthropicVerdict>()
-    )({
+      callGroqScoring,
+      consensusIdenticalAggregation<CreditVerdict>()
+    )(runtime.config, {
       monthlyIncome: plaidMetrics.monthlyIncome,
       emi,
       coverage: incomeCoverage,
@@ -456,7 +463,7 @@ const onLoanRequestSubmitted = (runtime: Runtime<Config>, log: EVMLog): string =
     .result()
 
   runtime.log(
-    `Anthropic verdict: verdict=${aiVerdict.verdict} approvedAmount=${aiVerdict.approvedAmount}`
+    `AI verdict: verdict=${aiVerdict.verdict} approvedAmount=${aiVerdict.approvedAmount}`
   )
 
   if (aiVerdict.verdict === "reject") {
