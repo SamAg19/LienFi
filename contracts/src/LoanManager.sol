@@ -70,11 +70,11 @@ contract LoanManager is ReceiverTemplate, ReentrancyGuard {
     ///////////////////
     // Workflow Name Constants (bytes10)
     ///////////////////
-    // Encoding: SHA256("credit") → first 10 hex chars → hex-encode ASCII → bytes10
-    // "credit" → SHA256: ecc4873a16... → ASCII hex: 0x65636334383733613136
-    bytes10 private constant WORKFLOW_CREDIT = bytes10(0x65636334383733613136);
-    // "create" → SHA256: fa8847b0c3... → ASCII hex: 0x66613838343762306333
-    bytes10 private constant WORKFLOW_CREATE = bytes10(0x66613838343762306333);
+    // Encoding: SHA256("credit-assessment") → first 10 hex chars → hex-encode ASCII → bytes10
+    // "credit-assessment" → SHA256: 0001d1ed53... → ASCII hex: 0x30303031643165643533
+    bytes10 private constant WORKFLOW_CREDIT = bytes10(0x30303031643165643533);
+    // "create-auction" → SHA256: 605b9393da... → ASCII hex: 0x36303562393339336461
+    bytes10 private constant WORKFLOW_CREATE = bytes10(0x36303562393339336461);
 
     /////////////////
     //Errors

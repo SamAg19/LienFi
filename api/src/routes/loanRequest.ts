@@ -32,7 +32,7 @@ const router = Router();
  *   nonce: number
  * }
  */
-router.post("/", (req: Request, res: Response): void => {
+router.post("/", async (req: Request, res: Response): Promise<void> => {
   const { borrowerAddress, plaidToken, tokenId, requestedAmount, tenureMonths, nonce } = req.body;
 
   // --- Validate required fields ---
@@ -70,7 +70,7 @@ router.post("/", (req: Request, res: Response): void => {
   }
 
   // --- Verify property exists ---
-  const property = getProperty(tokenId);
+  const property = await getProperty(tokenId);
   if (!property) {
     res.status(400).json({
       error: `Property with tokenId ${tokenId} not found. Verify property first via /verify-property.`,
@@ -87,7 +87,7 @@ router.post("/", (req: Request, res: Response): void => {
   const requestHash = keccak256(packed);
 
   // --- Store loan request ---
-  const stored = storeLoanRequest({
+  const stored = await storeLoanRequest({
     requestHash,
     borrowerAddress,
     plaidToken,
@@ -121,17 +121,17 @@ router.post("/", (req: Request, res: Response): void => {
  * Used by the CRE credit-assessment workflow to retrieve request details.
  * Includes appraisedValueUsd from the property store.
  */
-router.get("/:requestHash", (req: Request, res: Response): void => {
+router.get("/:requestHash", async (req: Request, res: Response): Promise<void> => {
   const requestHash = req.params.requestHash as string;
 
-  const request = getLoanRequest(requestHash);
+  const request = await getLoanRequest(requestHash);
   if (!request) {
     res.status(404).json({ error: "Loan request not found" });
     return;
   }
 
   // Look up property appraisal value for the CRE workflow
-  const property = getProperty(request.tokenId);
+  const property = await getProperty(request.tokenId);
   const appraisedValueUsd = property ? property.appraisedValueUsd : 0;
 
   res.status(200).json({

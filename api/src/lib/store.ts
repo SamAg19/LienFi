@@ -1,11 +1,14 @@
 /**
- * In-memory storage for the LienFi private API.
- *
  * Stores:
  * - Bid data for sealed-bid auctions (keyed by auctionId)
  * - Verified property details (keyed by tokenId) — full details stored here,
  *   only the metadataHash lives on-chain in the PropertyNFT
+ * - Loan request details (keyed by requestHash)
+ * - Listing hash cache (keyed by auctionId)
+ * - Reveal tracking (keyed by auctionId)
  */
+
+import { getDb } from "./db";
 
 export interface StoredBid {
   auctionId: string;
@@ -26,78 +29,114 @@ export interface AuctionState {
   price?: string;
 }
 
-// In-memory store — keyed by auctionId
-const auctions: Map<string, AuctionState> = new Map();
-
 /**
  * Get or auto-create an auction state.
  * Auto-creates on first bid for dev convenience.
  */
-export function getOrCreateAuction(
+export async function getOrCreateAuction(
   auctionId: string,
   deadline?: number
-): AuctionState {
-  let auction = auctions.get(auctionId);
-  if (!auction) {
-    auction = {
-      auctionId,
-      bids: [],
-      deadline: deadline || Math.floor(Date.now() / 1000) + 3600, // default 1hr
-      settled: false,
-    };
-    auctions.set(auctionId, auction);
-  }
-  return auction;
+): Promise<AuctionState> {
+  const col = getDb().collection("auctions");
+  const result = await col.findOneAndUpdate(
+    { auctionId },
+    {
+      $setOnInsert: {
+        auctionId,
+        deadline: deadline || Math.floor(Date.now() / 1000) + 3600,
+        settled: false,
+      },
+    },
+    { upsert: true, returnDocument: "after" }
+  );
+
+  const doc = result!;
+  // Fetch bids separately
+  const bids = await getBids(auctionId);
+
+  return {
+    auctionId: doc.auctionId as string,
+    bids,
+    deadline: doc.deadline as number,
+    settled: doc.settled as boolean,
+    winner: doc.winner as string | undefined,
+    price: doc.price as string | undefined,
+  };
 }
 
 /**
  * Get an existing auction or return null.
  */
-export function getAuction(auctionId: string): AuctionState | null {
-  return auctions.get(auctionId) || null;
+export async function getAuction(auctionId: string): Promise<AuctionState | null> {
+  const doc = await getDb().collection("auctions").findOne({ auctionId });
+  if (!doc) return null;
+
+  const bids = await getBids(auctionId);
+
+  return {
+    auctionId: doc.auctionId as string,
+    bids,
+    deadline: doc.deadline as number,
+    settled: doc.settled as boolean,
+    winner: doc.winner as string | undefined,
+    price: doc.price as string | undefined,
+  };
 }
 
 /**
- * Store a bid in the auction's bid list.
+ * Store a bid in the bids collection.
  * Returns false if duplicate (same bidder + auctionId).
  */
-export function storeBid(bid: StoredBid): boolean {
-  const auction = getOrCreateAuction(bid.auctionId);
-
-  // Reject duplicates — same bidder in same auction
-  const duplicate = auction.bids.find(
-    (b) => b.bidder.toLowerCase() === bid.bidder.toLowerCase()
-  );
-  if (duplicate) {
-    return false;
+export async function storeBid(bid: StoredBid): Promise<boolean> {
+  try {
+    await getDb().collection("bids").insertOne({
+      auctionId: bid.auctionId,
+      bidder: bid.bidder.toLowerCase(),
+      amount: bid.amount,
+      nonce: bid.nonce,
+      signature: bid.signature,
+      bidHash: bid.bidHash,
+      timestamp: bid.timestamp,
+    });
+    return true;
+  } catch (err: any) {
+    // Duplicate key error (code 11000) = same bidder in same auction
+    if (err.code === 11000) return false;
+    throw err;
   }
-
-  auction.bids.push(bid);
-  return true;
 }
 
 /**
  * Get all bids for an auction.
  */
-export function getBids(auctionId: string): StoredBid[] {
-  const auction = auctions.get(auctionId);
-  return auction ? auction.bids : [];
+export async function getBids(auctionId: string): Promise<StoredBid[]> {
+  const docs = await getDb()
+    .collection("bids")
+    .find({ auctionId })
+    .toArray();
+
+  return docs.map((d) => ({
+    auctionId: d.auctionId as string,
+    bidder: d.bidder as string,
+    amount: d.amount as string,
+    nonce: d.nonce as number,
+    signature: d.signature as string,
+    bidHash: d.bidHash as string,
+    timestamp: d.timestamp as number,
+  }));
 }
 
 /**
  * Mark an auction as settled with winner and price.
  */
-export function settleAuctionInStore(
+export async function settleAuctionInStore(
   auctionId: string,
   winner: string,
   price: string
-): void {
-  const auction = auctions.get(auctionId);
-  if (auction) {
-    auction.settled = true;
-    auction.winner = winner;
-    auction.price = price;
-  }
+): Promise<void> {
+  await getDb()
+    .collection("auctions")
+    .updateOne({ auctionId }, { $set: { settled: true, winner, price } });
 }
 
 // ─── Property Storage ─────────────────────────────────────────────────────────
@@ -111,20 +150,37 @@ export interface StoredProperty {
   metadataHash: string; // keccak256 of property details — matches on-chain NFT metadata
 }
 
-// In-memory store — keyed by tokenId
-const properties: Map<number, StoredProperty> = new Map();
-let nextTokenId = 1;
-
-export function getNextTokenId(): number {
-  return nextTokenId++;
+/**
+ * Get the next tokenId using an atomic counter in MongoDB.
+ */
+export async function getNextTokenId(): Promise<number> {
+  const result = await getDb()
+    .collection("counters")
+    .findOneAndUpdate(
+      { _id: "tokenId" as any },
+      { $inc: { seq: 1 } },
+      { upsert: true, returnDocument: "after" }
+    );
+  return result!.seq as number;
 }
 
-export function storeProperty(property: StoredProperty): void {
-  properties.set(property.tokenId, property);
+export async function storeProperty(property: StoredProperty): Promise<void> {
+  await getDb()
+    .collection("properties")
+    .replaceOne({ tokenId: property.tokenId }, property, { upsert: true });
 }
 
-export function getProperty(tokenId: number): StoredProperty | null {
-  return properties.get(tokenId) || null;
+export async function getProperty(tokenId: number): Promise<StoredProperty | null> {
+  const doc = await getDb().collection("properties").findOne({ tokenId });
+  if (!doc) return null;
+  return {
+    tokenId: doc.tokenId as number,
+    propertyId: doc.propertyId as string,
+    address: doc.address as string,
+    appraisedValueUsd: doc.appraisedValueUsd as number,
+    ownerAddress: doc.ownerAddress as string,
+    metadataHash: doc.metadataHash as string,
+  };
 }
 
 // ─── Loan Request Storage ────────────────────────────────────────────────────
@@ -140,41 +196,59 @@ export interface StoredLoanRequest {
   timestamp: number;
 }
 
-// In-memory store — keyed by requestHash
-const loanRequests: Map<string, StoredLoanRequest> = new Map();
-
-export function storeLoanRequest(request: StoredLoanRequest): boolean {
-  if (loanRequests.has(request.requestHash)) return false;
-  loanRequests.set(request.requestHash, request);
-  return true;
+export async function storeLoanRequest(request: StoredLoanRequest): Promise<boolean> {
+  try {
+    await getDb().collection("loanRequests").insertOne({ ...request });
+    return true;
+  } catch (err: any) {
+    if (err.code === 11000) return false;
+    throw err;
+  }
 }
 
-export function getLoanRequest(requestHash: string): StoredLoanRequest | null {
-  return loanRequests.get(requestHash) || null;
+export async function getLoanRequest(requestHash: string): Promise<StoredLoanRequest | null> {
+  const doc = await getDb().collection("loanRequests").findOne({ requestHash });
+  if (!doc) return null;
+  return {
+    requestHash: doc.requestHash as string,
+    borrowerAddress: doc.borrowerAddress as string,
+    plaidToken: doc.plaidToken as string,
+    tokenId: doc.tokenId as number,
+    requestedAmount: doc.requestedAmount as string,
+    tenureMonths: doc.tenureMonths as number,
+    nonce: doc.nonce as number,
+    timestamp: doc.timestamp as number,
+  };
 }
 
 // ─── Listing Hash Cache ─────────────────────────────────────────────────────
 
-const listingHashes: Map<string, string> = new Map();
-
-export function storeListingHash(auctionId: string, hash: string): void {
-  listingHashes.set(auctionId, hash);
+export async function storeListingHash(auctionId: string, hash: string): Promise<void> {
+  await getDb()
+    .collection("listingHashes")
+    .updateOne({ auctionId }, { $set: { auctionId, hash } }, { upsert: true });
 }
 
-export function getListingHash(auctionId: string): string | null {
-  return listingHashes.get(auctionId) || null;
+export async function getListingHash(auctionId: string): Promise<string | null> {
+  const doc = await getDb().collection("listingHashes").findOne({ auctionId });
+  return doc ? (doc.hash as string) : null;
 }
 
 // ─── Reveal Tracking ────────────────────────────────────────────────────────
 
-const revealedAuctions: Set<string> = new Set();
-
-export function markRevealed(auctionId: string): boolean {
-  if (revealedAuctions.has(auctionId)) return false;
-  revealedAuctions.add(auctionId);
-  return true;
+export async function markRevealed(auctionId: string): Promise<boolean> {
+  try {
+    await getDb()
+      .collection("reveals")
+      .insertOne({ auctionId, revealedAt: Date.now() });
+    return true;
+  } catch (err: any) {
+    if (err.code === 11000) return false;
+    throw err;
+  }
 }
 
-export function isRevealed(auctionId: string): boolean {
-  return revealedAuctions.has(auctionId);
+export async function isRevealed(auctionId: string): Promise<boolean> {
+  const doc = await getDb().collection("reveals").findOne({ auctionId });
+  return doc !== null;
 }

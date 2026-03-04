@@ -47,7 +47,7 @@ router.get(
       const tokenId = Number(onChainAuction.tokenId);
 
       // Fetch full property details from store
-      const property = getProperty(tokenId);
+      const property = await getProperty(tokenId);
       if (!property) {
         res.status(404).json({
           error: "Property details not found for this auction",
@@ -77,7 +77,7 @@ router.get(
       const listingHash = keccak256(toUtf8Bytes(listingJson));
 
       // Cache for reference
-      storeListingHash(auctionId, listingHash);
+      await storeListingHash(auctionId, listingHash);
 
       console.log(
         `[LISTING] auctionId=${auctionId.slice(0, 10)}... tokenId=${tokenId} listingHash=${listingHash.slice(0, 10)}...`

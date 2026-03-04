@@ -57,7 +57,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     }
 
     // --- Check auction deadline ---
-    const auction = getOrCreateAuction(auctionId, auctionDeadline);
+    const auction = await getOrCreateAuction(auctionId, auctionDeadline);
     if (auction.settled) {
       res.status(400).json({ error: "Auction already settled" });
       return;
@@ -128,7 +128,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     const timestamp = Math.floor(Date.now() / 1000);
 
     // --- Store bid (rejects duplicates) ---
-    const stored = storeBid({
+    const stored = await storeBid({
       auctionId,
       bidder,
       amount,

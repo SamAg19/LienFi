@@ -1,12 +1,12 @@
 {
   "schedule": "0 */5 * * * *",
   "url": "https://sealbid.onrender.com",
-  "owner": "",
+  "owner": "0xf6aC8a8715024fE9Ff592D6A3f186E2B502B356a",
   "evms": [
     {
       "chainSelectorName": "ethereum-testnet-sepolia",
-      "loanManagerAddress": "TODO: 0x<LoanManager-address>",
-      "lienFiAuctionAddress": "TODO: 0x<LienFiAuction-address>",
+      "loanManagerAddress": "0x9b99e44dbb463575ec35641b0380148C748F3268",
+      "lienFiAuctionAddress": "0x43f5831c22CdcF8AA4689C200AFde337203c2B52",
       "gasLimit": "500000"
     }
   ]

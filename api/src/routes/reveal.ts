@@ -36,7 +36,7 @@ router.post(
       }
 
       // Check one-time reveal
-      if (isRevealed(auctionId)) {
+      if (await isRevealed(auctionId)) {
         res.status(403).json({
           error: "Property details already revealed for this auction",
         });
@@ -80,14 +80,14 @@ router.post(
 
       // Fetch full property details
       const tokenId = Number(onChainAuction.tokenId);
-      const property = getProperty(tokenId);
+      const property = await getProperty(tokenId);
       if (!property) {
         res.status(404).json({ error: "Property details not found" });
         return;
       }
 
       // Mark as revealed (one-time)
-      const marked = markRevealed(auctionId);
+      const marked = await markRevealed(auctionId);
       if (!marked) {
         res.status(403).json({
           error: "Property details already revealed for this auction",

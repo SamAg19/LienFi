@@ -30,7 +30,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     }
 
     // --- Check auction exists ---
-    const auction = getAuction(auctionId);
+    const auction = await getAuction(auctionId);
     if (!auction) {
       res.status(400).json({ error: "Auction not found" });
       return;
@@ -42,7 +42,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     }
 
     // --- Get bids ---
-    const bids = getBids(auctionId);
+    const bids = await getBids(auctionId);
     if (bids.length === 0) {
       res.status(400).json({ error: "No bids to settle" });
       return;
@@ -64,7 +64,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     const result = settleVickrey(bids, reservePrice, hmacKey);
 
     // --- Update store ---
-    settleAuctionInStore(auctionId, result.winner, result.price);
+    await settleAuctionInStore(auctionId, result.winner, result.price);
 
     console.log(
       `[SETTLE] auction=${auctionId.slice(0, 10)}... winner=${result.winner.slice(0, 10)}... price=${result.price}`

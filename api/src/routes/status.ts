@@ -10,11 +10,11 @@ const router = Router();
  *
  * Returns: { bidCount: number, deadline: number, settled: boolean }
  */
-router.get("/:auctionId", (req: Request<{ auctionId: string }>, res: Response): void => {
+router.get("/:auctionId", async (req: Request<{ auctionId: string }>, res: Response): Promise<void> => {
   try {
     const { auctionId } = req.params;
 
-    const auction = getAuction(auctionId);
+    const auction = await getAuction(auctionId);
     if (!auction) {
       res.status(200).json({
         bidCount: 0,

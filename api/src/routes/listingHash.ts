@@ -27,7 +27,7 @@ router.get(
         return;
       }
 
-      const property = getProperty(tokenId);
+      const property = await getProperty(tokenId);
       if (!property) {
         res
           .status(404)

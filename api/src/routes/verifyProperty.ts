@@ -76,7 +76,7 @@ const COMMITMENT_SECRET = "lienfi-demo-secret-2024";
  *   message: string
  * }
  */
-router.post("/", (req: Request, res: Response): void => {
+router.post("/", async (req: Request, res: Response): Promise<void> => {
   const { propertyId, sellerAddress } = req.body;
 
   // --- Validate required fields ---
@@ -133,10 +133,10 @@ router.post("/", (req: Request, res: Response): void => {
   const metadataHash = keccak256(packed);
 
   // --- Assign tokenId and store ---
-  const tokenId = getNextTokenId();
+  const tokenId = await getNextTokenId();
   property.tokenized = true;
 
-  storeProperty({
+  await storeProperty({
     tokenId,
     propertyId: property.propertyId,
     address: property.address,
