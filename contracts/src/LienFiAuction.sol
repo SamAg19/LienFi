@@ -29,6 +29,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IWorldID} from "./interfaces/IWorldID.sol";
 import {ByteHasher} from "./libraries/ByteHasher.sol";
 import {ReceiverTemplate} from "./ReceiverTemplate.sol";
+import {ILoanManager} from "./interfaces/ILoanManager.sol";
 
 /**
  * @title LienFi Auction
@@ -95,6 +96,8 @@ contract LienFiAuction is ReceiverTemplate, ReentrancyGuard {
     error LienFiAuction__CanOnlyExtendLock();
     error LienFiAuction__UnknownWorkflow(bytes10 workflowName);
     error LienFiAuction__UnknownInstructionType(uint8 instructionType);
+    error LienFiAuction__NotLoanManager();
+    error LienFiAuction__LoanManagerAlreadySet();
 
     ///////////////////
     // Type Declarations
@@ -107,6 +110,7 @@ contract LienFiAuction is ReceiverTemplate, ReentrancyGuard {
         bool settled;
         address winner;
         uint256 settledPrice;  // USDC (6 decimals)
+        bytes32 listingHash;   // keccak256 of sanitized listing JSON — on-chain integrity anchor
     }
 
     ///////////////////
@@ -129,6 +133,9 @@ contract LienFiAuction is ReceiverTemplate, ReentrancyGuard {
     mapping(bytes32 => bytes32[]) public bidHashes;
 
     bytes32 public activeAuctionId;
+
+    // LoanManager address — set post-deploy via setLoanManager()
+    address public loanManager;
 
     ///////////////////
     // Events
@@ -158,6 +165,13 @@ contract LienFiAuction is ReceiverTemplate, ReentrancyGuard {
         address winner,
         uint256 price
     );
+    ///////////////////
+    // Modifiers
+    ///////////////////
+    modifier onlyLoanManager() {
+        if (msg.sender != loanManager) revert LienFiAuction__NotLoanManager();
+        _;
+    }
 
     ///////////////////
     // Functions
@@ -262,6 +276,54 @@ contract LienFiAuction is ReceiverTemplate, ReentrancyGuard {
         emit PoolWithdrawal(msg.sender, token, amount);
     }
 
+    /// @notice Set the LoanManager address. Owner only, one-time.
+    function setLoanManager(address _loanManager) external onlyOwner {
+        if (_loanManager == address(0)) revert LienFiAuction__InvalidAmount();
+        if (loanManager != address(0)) revert LienFiAuction__LoanManagerAlreadySet();
+        loanManager = _loanManager;
+    }
+
+    /// @notice Open a default auction directly. LoanManager only.
+    /// @dev Bypasses CRE create-auction workflow. NFT must already be held by this contract.
+    ///      Seller is set to msg.sender (LoanManager) so settlement USDC flows to LoanManager.
+    function initiateDefaultAuction(
+        uint256 tokenId,
+        uint256 reservePrice,
+        bytes32 auctionId,
+        uint256 deadline,
+        bytes32 listingHash
+    ) external onlyLoanManager {
+        if (auctions[auctionId].deadline != 0) {
+            revert LienFiAuction__AuctionAlreadyExists();
+        }
+        if (activeAuctionId != bytes32(0)) {
+            revert LienFiAuction__AuctionAlreadyExists();
+        }
+        if (deadline <= block.timestamp) {
+            revert LienFiAuction__DeadlineMustBeFuture();
+        }
+
+        // Verify this contract holds the NFT in escrow (LoanManager transferred it before calling)
+        if (IERC721(i_propertyNFT).ownerOf(tokenId) != address(this)) {
+            revert LienFiAuction__TransferFailed();
+        }
+
+        auctions[auctionId] = Auction({
+            seller: msg.sender, // LoanManager — receives USDC on settlement
+            tokenId: tokenId,
+            deadline: deadline,
+            reservePrice: reservePrice,
+            settled: false,
+            winner: address(0),
+            settledPrice: 0,
+            listingHash: listingHash
+        });
+
+        activeAuctionId = auctionId;
+
+        emit AuctionCreated(auctionId, msg.sender, tokenId, deadline, reservePrice);
+    }
+
     ///////////////////
     // Internal Functions
     ///////////////////
@@ -328,7 +390,8 @@ contract LienFiAuction is ReceiverTemplate, ReentrancyGuard {
             reservePrice: reservePrice,
             settled: false,
             winner: address(0),
-            settledPrice: 0
+            settledPrice: 0,
+            listingHash: bytes32(0)
         });
 
         activeAuctionId = auctionId;
@@ -387,6 +450,12 @@ contract LienFiAuction is ReceiverTemplate, ReentrancyGuard {
         IERC721(i_propertyNFT).safeTransferFrom(address(this), winner, a.tokenId);
 
         emit AuctionSettled(auctionId, winner, price);
+
+        // If this was a default auction (seller is LoanManager), notify LoanManager
+        // so it can route USDC to pool and surplus to borrower
+        if (a.seller == loanManager && loanManager != address(0)) {
+            ILoanManager(loanManager).onAuctionSettled(a.tokenId, price);
+        }
     }
 
     ///////////////////

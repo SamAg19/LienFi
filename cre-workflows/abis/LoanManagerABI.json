@@ -1,0 +1,91 @@
+[
+  {
+    "type": "function",
+    "name": "getLoan",
+    "inputs": [
+      {
+        "name": "loanId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct LoanManager.Loan",
+        "components": [
+          {
+            "name": "loanId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "borrower",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "tokenId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "principal",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "interestRateBps",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "tenureMonths",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "emiAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "nextDueDate",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "missedPayments",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "remainingPrincipal",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum LoanManager.LoanStatus"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "loanCounter",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  }
+]

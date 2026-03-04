@@ -1,10 +1,12 @@
 import {
-  HTTPCapability,
+  CronCapability,
   ConfidentialHTTPClient,
   EVMClient,
   getNetwork,
-  hexToBase64,
+  encodeCallMsg,
   bytesToHex,
+  hexToBase64,
+  LAST_FINALIZED_BLOCK_NUMBER,
   TxStatus,
   handler,
   consensusIdenticalAggregation,
@@ -13,61 +15,98 @@ import {
   type ConfidentialHTTPSendRequester,
   type Runtime,
   Runner,
-  type HTTPPayload,
 } from "@chainlink/cre-sdk"
 import {
+  encodeFunctionData,
+  decodeFunctionResult,
   encodeAbiParameters,
   parseAbiParameters,
-  getAddress,
+  type Address,
+  type Abi,
+  zeroAddress,
 } from "viem"
 import { z } from "zod"
+import LoanManagerABI from "../abis/LoanManagerABI.json"
+import LienFiAuctionABI from "../abis/LienFiAuctionABI.json"
+
+const LOAN_MANAGER_ABI = LoanManagerABI as Abi
+const AUCTION_ABI = LienFiAuctionABI as Abi
+const ZERO_BYTES32 = "0x0000000000000000000000000000000000000000000000000000000000000000"
+
+// LoanStatus enum matches the Solidity contract
+const LOAN_STATUS_ACTIVE = 0
+
+// 3 missed EMI periods (each 30 days) = default threshold
+const EMI_PERIOD_SECONDS = 30n * 24n * 3600n
+const DEFAULT_THRESHOLD_PERIODS = 3n
 
 const configSchema = z.object({
+  schedule: z.string(),
   url: z.string(),
   owner: z.string(),
   evms: z.array(
     z.object({
       chainSelectorName: z.string(),
-      consumerAddress: z.string(),
+      loanManagerAddress: z.string(),
+      lienFiAuctionAddress: z.string(),
       gasLimit: z.string(),
     })
   ),
 })
 type Config = z.infer<typeof configSchema>
 
-// Payload sent to trigger auction creation for a property NFT
-const createAuctionPayloadSchema = z.object({
-  propertyId: z.string(),        // e.g. "PROP-001"
-  sellerAddress: z.string(),     // Ethereum address of property owner / seller
-  tokenId: z.number(),           // PropertyNFT tokenId (already minted)
-  deadline: z.number(),          // auction end timestamp (unix seconds)
-  reservePrice: z.string(),      // minimum bid in USDC (6-decimal string, e.g. "200000000000" = $200k)
-  auctionId: z.string(),         // bytes32 hex auction identifier
-})
-type CreateAuctionPayload = z.infer<typeof createAuctionPayloadSchema>
+type LoanTuple = readonly [
+  bigint,   // loanId
+  string,   // borrower
+  bigint,   // tokenId
+  bigint,   // principal
+  bigint,   // interestRateBps
+  bigint,   // tenureMonths
+  bigint,   // emiAmount
+  bigint,   // nextDueDate
+  bigint,   // missedPayments
+  bigint,   // remainingPrincipal
+  number,   // status (uint8)
+]
 
-type VerifyResult = {
-  valid: boolean
-  tokenId: number          // assigned token ID
-  metadataHash: string     // keccak256 of property details
-  appraisedValue: string   // total property appraised value in USD
-  message: string
+const readContract = (
+  evmClient: EVMClient,
+  runtime: Runtime<Config>,
+  to: Address,
+  abi: Abi,
+  functionName: string,
+  args?: readonly unknown[]
+): `0x${string}` => {
+  const callData = encodeFunctionData({ abi, functionName, args })
+  const result = evmClient
+    .callContract(runtime, {
+      call: encodeCallMsg({
+        from: zeroAddress,
+        to,
+        data: callData,
+      }),
+      blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+    })
+    .result()
+  return bytesToHex(result.data)
 }
 
-// Verify property via Confidential HTTP.
-// The API checks: property exists, owner verified, not already tokenized.
-// Returns tokenId and metadataHash for NFT minting.
-const verifyProperty = (
+/**
+ * Fetch listing hash from LienFi API via Confidential HTTP.
+ * Called before the auction exists on-chain, keyed by tokenId.
+ */
+type ListingHashResponse = { listingHash: string }
+
+const fetchListingHash = (
   sendRequester: ConfidentialHTTPSendRequester,
   config: Config,
-  body: string
-): VerifyResult => {
+  tokenId: bigint
+): ListingHashResponse => {
   const response = sendRequester
     .sendRequest({
       request: {
-        url: `${config.url}/verify-property`,
-        method: "POST",
-        bodyString: body,
+        url: `${config.url}/listing-hash/${tokenId}`,
+        method: "GET",
         multiHeaders: {
           "X-Api-Key": { values: ["{{.apiKey}}"] },
           "Content-Type": { values: ["application/json"] },
@@ -81,109 +120,156 @@ const verifyProperty = (
     .result()
 
   if (!ok(response)) {
-    throw new Error(`Property verification API failed: ${response.statusCode}`)
+    throw new Error(`Listing hash API failed: ${response.statusCode}`)
   }
-  return json(response) as VerifyResult
+  return json(response) as ListingHashResponse
 }
 
-const onCreateAuction = (runtime: Runtime<Config>, payload: HTTPPayload): string => {
-  const { consumerAddress, chainSelectorName, gasLimit } = runtime.config.evms[0]
+const onCronTrigger = (runtime: Runtime<Config>): string => {
+  const { loanManagerAddress, lienFiAuctionAddress, chainSelectorName, gasLimit } =
+    runtime.config.evms[0]
 
-  // 1. Parse payload
-  if (!payload.input || payload.input.length === 0) {
-    throw new Error("HTTP trigger payload is required")
-  }
-
-  const payloadJson = JSON.parse(payload.input.toString())
-  const data = createAuctionPayloadSchema.parse(payloadJson)
-
-  runtime.log(`Create auction request: property=${data.propertyId} tokenId=${data.tokenId} seller=${data.sellerAddress}`)
-
-  // 2. Verify property via Confidential HTTP
-  //    Property details stay private — verification runs inside CRE enclave.
-  const verifyBody = JSON.stringify({
-    propertyId: data.propertyId,
-    sellerAddress: data.sellerAddress,
+  const network = getNetwork({
+    chainFamily: "evm",
+    chainSelectorName,
+    isTestnet: true,
   })
-
-  const confHTTPClient = new ConfidentialHTTPClient()
-  const verifyResult = confHTTPClient
-    .sendRequest(
-      runtime,
-      verifyProperty,
-      consensusIdenticalAggregation<VerifyResult>()
-    )(runtime.config, verifyBody)
-    .result()
-
-  if (!verifyResult.valid) {
-    throw new Error(`Property verification failed: ${verifyResult.message}`)
-  }
-
-  runtime.log(`Property ${data.propertyId} verified. TokenId: ${data.tokenId}. Appraised: $${verifyResult.appraisedValue}`)
-
-  // 3. Encode report for contract:
-  //    _createPropertyAuction(propertyId, seller, tokenId, auctionId, deadline, reservePrice)
-  const checksummedSeller = getAddress(data.sellerAddress)
-
-  // Convert propertyId string to bytes32
-  const propertyIdBytes = data.propertyId.padEnd(32, "\0").slice(0, 32)
-  const propertyIdHex = `0x${Buffer.from(propertyIdBytes).toString("hex")}` as `0x${string}`
-
-  const reportData = encodeAbiParameters(
-    parseAbiParameters(
-      "bytes32 propertyId, address seller, uint256 tokenId, bytes32 auctionId, uint256 deadline, uint256 reservePrice"
-    ),
-    [
-      propertyIdHex,
-      checksummedSeller,
-      BigInt(data.tokenId),
-      data.auctionId as `0x${string}`,
-      BigInt(data.deadline),
-      BigInt(data.reservePrice),
-    ]
-  )
-
-  // 4. Get DON-signed report
-  const reportResponse = runtime
-    .report({
-      encodedPayload: hexToBase64(reportData),
-      encoderName: "evm",
-      signingAlgo: "ecdsa",
-      hashingAlgo: "keccak256",
-    })
-    .result()
-
-  // 5. Submit via EVMClient → KeystoneForwarder → onReport → _createPropertyAuction
-  const network = getNetwork({ chainFamily: "evm", chainSelectorName, isTestnet: true })
   if (!network) throw new Error(`Network not found: ${chainSelectorName}`)
+
   const evmClient = new EVMClient(network.chainSelector.selector)
 
-  const writeResult = evmClient
-    .writeReport(runtime, {
-      receiver: consumerAddress,
-      report: reportResponse,
-      gasConfig: { gasLimit },
-    })
-    .result()
+  // 1. Check if an auction is already active — only one auction at a time
+  const activeAuctionRaw = readContract(
+    evmClient, runtime,
+    lienFiAuctionAddress as Address,
+    AUCTION_ABI,
+    "activeAuctionId"
+  )
+  const activeAuctionId = decodeFunctionResult({
+    abi: AUCTION_ABI,
+    functionName: "activeAuctionId",
+    data: activeAuctionRaw,
+  }) as `0x${string}`
 
-  if (writeResult.txStatus !== TxStatus.SUCCESS) {
-    throw new Error(`createPropertyAuction tx failed: ${writeResult.txStatus}`)
+  if (activeAuctionId !== ZERO_BYTES32) {
+    runtime.log("Auction already active, skipping default detection")
+    return "no-op"
   }
 
-  const txHash = bytesToHex(writeResult.txHash || new Uint8Array(32))
-  runtime.log(`createPropertyAuction submitted: ${txHash}`)
-  runtime.log(`Auction created for tokenId=${data.tokenId}, reserve=${data.reservePrice}`)
-  return txHash
+  // 2. Read total loan count
+  const counterRaw = readContract(
+    evmClient, runtime,
+    loanManagerAddress as Address,
+    LOAN_MANAGER_ABI,
+    "loanCounter"
+  )
+  const loanCount = decodeFunctionResult({
+    abi: LOAN_MANAGER_ABI,
+    functionName: "loanCounter",
+    data: counterRaw,
+  }) as bigint
+
+  if (loanCount === 0n) {
+    runtime.log("No loans exist, skipping")
+    return "no-op"
+  }
+
+  runtime.log(`Scanning ${loanCount} loans for defaults...`)
+
+  // 3. Scan each loan for default condition
+  const now = BigInt(Math.floor(Date.now() / 1000))
+
+  for (let i = 1n; i <= loanCount; i++) {
+    const loanRaw = readContract(
+      evmClient, runtime,
+      loanManagerAddress as Address,
+      LOAN_MANAGER_ABI,
+      "getLoan",
+      [i]
+    )
+    const loan = decodeFunctionResult({
+      abi: LOAN_MANAGER_ABI,
+      functionName: "getLoan",
+      data: loanRaw,
+    }) as LoanTuple
+
+    const status = loan[10]
+    const nextDueDate = loan[7]
+
+    // Skip non-active loans
+    if (status !== LOAN_STATUS_ACTIVE) continue
+
+    // Default condition: current time > nextDueDate + (3 * EMI_PERIOD)
+    const defaultThreshold = nextDueDate + (DEFAULT_THRESHOLD_PERIODS * EMI_PERIOD_SECONDS)
+    if (now <= defaultThreshold) continue
+
+    const loanId = loan[0]
+    const tokenId = loan[2]
+    runtime.log(`Loan ${loanId} is in default (nextDueDate=${nextDueDate}, now=${now})`)
+
+    // 4. Fetch listing hash from API via Confidential HTTP
+    const httpClient = new ConfidentialHTTPClient()
+    const hashResponse = httpClient
+      .sendRequest(
+        runtime,
+        fetchListingHash,
+        consensusIdenticalAggregation<ListingHashResponse>()
+      )(runtime.config, tokenId)
+      .result()
+    const listingHash = hashResponse.listingHash as `0x${string}`
+    runtime.log(`Fetched listingHash=${listingHash.slice(0, 10)}... for tokenId=${tokenId}`)
+
+    // 5. Encode report: loanId + listingHash — contract decodes both
+    const reportData = encodeAbiParameters(
+      parseAbiParameters("uint256 loanId, bytes32 listingHash"),
+      [loanId, listingHash]
+    )
+
+    // 6. Get DON-signed report
+    const reportResponse = runtime
+      .report({
+        encodedPayload: hexToBase64(reportData),
+        encoderName: "evm",
+        signingAlgo: "ecdsa",
+        hashingAlgo: "keccak256",
+      })
+      .result()
+
+    // 7. Write report to LoanManager (not LienFiAuction)
+    const writeResult = evmClient
+      .writeReport(runtime, {
+        receiver: loanManagerAddress,
+        report: reportResponse,
+        gasConfig: { gasLimit },
+      })
+      .result()
+
+    if (writeResult.txStatus !== TxStatus.SUCCESS) {
+      throw new Error(`processDefault tx failed: ${writeResult.txStatus}`)
+    }
+
+    const txHash = bytesToHex(writeResult.txHash || new Uint8Array(32))
+    runtime.log(`Default processed for loanId=${loanId}: ${txHash}`)
+
+    // Only handle one default per cron tick (one auction at a time)
+    return txHash
+  }
+
+  runtime.log("No defaulted loans found")
+  return "no-op"
 }
 
-const initWorkflow = (config: Config) => [
-  handler(
-    new HTTPCapability().trigger({}),
-    onCreateAuction
-  ),
-]
+const initWorkflow = (config: Config) => {
+  const cron = new CronCapability()
+  return [
+    handler(
+      cron.trigger({ schedule: config.schedule }),
+      onCronTrigger
+    ),
+  ]
+}
 
 export async function main() {
-  const runner = await Runner.newRunner<Config>({ configSchema })
+  const runner = await Runner.newRunner<Config>()
   await runner.run(initWorkflow)
 }

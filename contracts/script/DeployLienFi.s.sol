@@ -142,6 +142,9 @@ import {IWorldID} from "../src/interfaces/IWorldID.sol";
         lendingPool.setLoanManager(address(loanManager));
         console.log("  LendingPool.setLoanManager -> LoanManager");
 
+        // LienFiAuction: only LoanManager can call initiateDefaultAuction()
+        lienFiAuction.setLoanManager(address(loanManager));
+        console.log("  LienFiAuction.setLoanManager -> LoanManager");
 
         vm.stopBroadcast();
 

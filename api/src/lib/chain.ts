@@ -4,7 +4,7 @@ import { ethers } from "ethers";
 const CONTRACT_ABI = [
   "function poolBalance(address, address) view returns (uint256)",
   "function lockExpiry(address) view returns (uint256)",
-  "function auctions(bytes32) view returns (address seller, uint256 tokenId, uint256 deadline, uint256 reservePrice, bool settled, address winner, uint256 settledPrice)",
+  "function auctions(bytes32) view returns (address seller, uint256 tokenId, uint256 deadline, uint256 reservePrice, bool settled, address winner, uint256 settledPrice, bytes32 listingHash)",
 ];
 
 function getContract(): ethers.Contract {
@@ -37,6 +37,7 @@ export interface AuctionOnChain {
   settled: boolean;
   winner: string;
   settledPrice: bigint;  // USDC (6 decimals)
+  listingHash: string;   // bytes32 hex
 }
 
 export async function getAuctionOnChain(
@@ -52,5 +53,6 @@ export async function getAuctionOnChain(
     settled: result[4],
     winner: result[5],
     settledPrice: result[6],
+    listingHash: result[7],
   };
 }

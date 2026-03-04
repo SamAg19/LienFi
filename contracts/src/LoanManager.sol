@@ -40,8 +40,6 @@ import {ILienFiAuction} from "./interfaces/ILienFiAuction.sol";
  * @author LienFi Team
  *
  * The single contract that owns the complete mortgage lifecycle:
- *   Phase 3: submitRequest() + _writeVerdict() — request anchoring + CRE verdict receiving
- *   Phase 4: claimLoan() + repay() + checkDefault() + onAuctionSettled() — full lifecycle
  *
  * Architecture:
  * - Inherits ReceiverTemplate — CRE reports arrive via KeystoneForwarder → onReport()
@@ -75,6 +73,8 @@ contract LoanManager is ReceiverTemplate, ReentrancyGuard {
     // Encoding: SHA256("credit") → first 10 hex chars → hex-encode ASCII → bytes10
     // "credit" → SHA256: ecc4873a16... → ASCII hex: 0x65636334383733613136
     bytes10 private constant WORKFLOW_CREDIT = bytes10(0x65636334383733613136);
+    // "create" → SHA256: fa8847b0c3... → ASCII hex: 0x66613838343762306333
+    bytes10 private constant WORKFLOW_CREATE = bytes10(0x66613838343762306333);
 
     /////////////////
     //Errors
@@ -90,7 +90,6 @@ contract LoanManager is ReceiverTemplate, ReentrancyGuard {
     error LoanManager__LoanNotFound();
     error LoanManager__LoanNotActive();
     error LoanManager__NotBorrower();
-    error LoanManager__PaymentNotOverdue();
     error LoanManager__LoanNotDefaulted();
     error LoanManager__NoPendingRequest();
     error LoanManager__UnknownWorkflow(bytes10 workflowName);
@@ -121,7 +120,7 @@ contract LoanManager is ReceiverTemplate, ReentrancyGuard {
     }
 
     /**
-     * @notice On-chain loan record — created by claimLoan(), updated by repay()/checkDefault().
+     * @notice On-chain loan record — created by claimLoan(), updated by repay()/_processDefault().
      */
     struct Loan {
         uint256 loanId;
@@ -141,8 +140,6 @@ contract LoanManager is ReceiverTemplate, ReentrancyGuard {
     // Constants
     ///////////////////
     uint256 public constant EMI_PERIOD = 30 days; //30days in secs
-    uint256 public constant DEFAULT_THRESHOLD = 3; //missed payments before default
-    uint256 public constant AUCTION_DURATION = 7 days; //auction duration in secs
     uint256 public constant BPS_DENOMINATOR = 10_000; //basis points denominator for interest rate calculations (10000 = 100%)
 
     ///////////////////
@@ -189,7 +186,6 @@ contract LoanManager is ReceiverTemplate, ReentrancyGuard {
         uint256 remainingPrincipal
     );
     event LoanClosed(uint256 indexed loanId);
-    event PaymentMissed(uint256 indexed loanId, uint256 missedPayments);
     event LoanDefaulted(
         uint256 indexed loanId,
         address indexed borrower,
@@ -248,11 +244,12 @@ contract LoanManager is ReceiverTemplate, ReentrancyGuard {
     /**
      * @notice Dispatches CRE reports to the correct handler using workflowName from metadata.
      * @dev Called by ReceiverTemplate.onReport() after forwarder validation.
-     *      Currently handles one workflow:
+     *      Handles two workflows:
      *        "credit" → _writeVerdict (credit assessment result)
+     *        "create" → _processDefault (default detection + auction creation)
      *
      *      Encoding matches LienFiAuction pattern:
-     *        SHA256("credit") → first 10 hex chars → hex-encode ASCII → bytes10
+     *        SHA256(name) → first 10 hex chars → hex-encode ASCII → bytes10
      */
     function _processReport(
         bytes calldata metadata,
@@ -262,6 +259,8 @@ contract LoanManager is ReceiverTemplate, ReentrancyGuard {
 
         if (workflowName == WORKFLOW_CREDIT) {
             _writeVerdict(report);
+        } else if (workflowName == WORKFLOW_CREATE) {
+            _processDefault(report);
         } else {
             revert LoanManager__UnknownWorkflow(workflowName);
         }
@@ -531,45 +530,6 @@ contract LoanManager is ReceiverTemplate, ReentrancyGuard {
     }
 
     /**
-     * @notice Check if a loan payment is overdue and record missed payment.
-     * @dev Callable by anyone (keeper, cron, frontend). Permissionless.
-     *
-     *      Logic:
-     *        - Loan must be ACTIVE and current time must be past nextDueDate
-     *        - Increments missedPayments counter
-     *        - Advances nextDueDate by 30 days (tracks next potential miss)
-     *        - If missedPayments >= 3: triggers default + sealed-bid auction
-     *
-     *      Can only be called once per overdue period. After incrementing,
-     *      nextDueDate advances so the function can't be called again until
-     *      another 30 days pass.
-     *
-     * @param loanId The ID of the loan to check
-     */
-    function checkDefault(uint256 loanId) external {
-        Loan storage loan = loans[loanId];
-
-        if (loan.loanId == 0) revert LoanManager__LoanNotFound();
-        if (loan.status != LoanStatus.ACTIVE)
-            revert LoanManager__LoanNotActive();
-        if (block.timestamp <= loan.nextDueDate)
-            revert LoanManager__PaymentNotOverdue();
-
-        // Increment missed payment counter
-        loan.missedPayments++;
-
-        // Advance nextDueDate to track next potential miss
-        loan.nextDueDate += EMI_PERIOD;
-
-        emit PaymentMissed(loanId, loan.missedPayments);
-
-        // 3 strikes → default
-        if (loan.missedPayments >= DEFAULT_THRESHOLD) {
-            _triggerDefault(loanId);
-        }
-    }
-
-    /**
      * @notice Callback from LienFiAuction after auction settles. LienFiAuction only.
      * @dev Called by LienFiAuction._settleAuction() after NFT is transferred to winner.
      *      Handles fund distribution:
@@ -625,14 +585,23 @@ contract LoanManager is ReceiverTemplate, ReentrancyGuard {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * @notice Trigger default on a loan after 3 missed payments.
-     * @dev Transfers PropertyNFT to LienFiAuction and initiates default auction.
-     *      Reserve price = remaining principal (minimum acceptable bid).
-     *      AuctionId = keccak256(tokenId, loanId) — unique per default event.
-     *      Deadline = current time + AUCTION_DURATION (7 days).
+     * @notice Process a default report from the CRE create-auction workflow.
+     * @dev The cron workflow scans active loans, detects overdue payments (>= 3 periods),
+     *      and writes a DON report with the loanId. This function:
+     *        1. Validates the loan exists and is ACTIVE
+     *        2. Sets status to DEFAULTED
+     *        3. Transfers PropertyNFT to LienFiAuction
+     *        4. Calls initiateDefaultAuction with reservePrice = remainingPrincipal
+     *
+     *      Report encoding: abi.encode(uint256 loanId, bytes32 listingHash)
      */
-    function _triggerDefault(uint256 loanId) internal {
+    function _processDefault(bytes calldata report) internal {
+        (uint256 loanId, bytes32 listingHash) = abi.decode(report, (uint256, bytes32));
+
         Loan storage loan = loans[loanId];
+        if (loan.loanId == 0) revert LoanManager__LoanNotFound();
+        if (loan.status != LoanStatus.ACTIVE)
+            revert LoanManager__LoanNotActive();
 
         loan.status = LoanStatus.DEFAULTED;
 
@@ -651,7 +620,8 @@ contract LoanManager is ReceiverTemplate, ReentrancyGuard {
             tokenId,
             reservePrice,
             auctionId,
-            block.timestamp + AUCTION_DURATION
+            block.timestamp + 7 days,
+            listingHash
         );
 
         emit LoanDefaulted(loanId, loan.borrower, tokenId, reservePrice);

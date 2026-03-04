@@ -7,6 +7,9 @@ import settleRouter from "./routes/settle";
 import statusRouter from "./routes/status";
 import verifyPropertyRouter from "./routes/verifyProperty";
 import loanRequestRouter from "./routes/loanRequest";
+import listingRouter from "./routes/listing";
+import listingHashRouter from "./routes/listingHash";
+import revealRouter from "./routes/reveal";
 
 dotenv.config();
 
@@ -28,6 +31,11 @@ app.use("/settle", authMiddleware, settleRouter);
 app.use("/status", authMiddleware, statusRouter);
 app.use("/verify-property", authMiddleware, verifyPropertyRouter);
 app.use("/loan-request", authMiddleware, loanRequestRouter);
+app.use("/listing-hash", authMiddleware, listingHashRouter);
+
+// --- Public routes (no auth — bidder-facing) ---
+app.use("/listing", listingRouter);
+app.use("/reveal", revealRouter);
 
 // --- Start server ---
 app.listen(PORT, () => {
@@ -38,6 +46,9 @@ app.listen(PORT, () => {
   console.log(`   POST /verify-property  — Verify property for tokenization`);
   console.log(`   POST /loan-request     — Submit loan request details`);
   console.log(`   GET  /loan-request/:h  — Fetch loan request by hash`);
+  console.log(`   GET  /listing-hash/:id  — Listing hash by tokenId`);
+  console.log(`   GET  /listing/:id      — Sanitized property listing`);
+  console.log(`   POST /reveal/:id       — Reveal full details to winner`);
   console.log(`   GET  /health           — Health check\n`);
 });
 

@@ -152,3 +152,29 @@ export function storeLoanRequest(request: StoredLoanRequest): boolean {
 export function getLoanRequest(requestHash: string): StoredLoanRequest | null {
   return loanRequests.get(requestHash) || null;
 }
+
+// ─── Listing Hash Cache ─────────────────────────────────────────────────────
+
+const listingHashes: Map<string, string> = new Map();
+
+export function storeListingHash(auctionId: string, hash: string): void {
+  listingHashes.set(auctionId, hash);
+}
+
+export function getListingHash(auctionId: string): string | null {
+  return listingHashes.get(auctionId) || null;
+}
+
+// ─── Reveal Tracking ────────────────────────────────────────────────────────
+
+const revealedAuctions: Set<string> = new Set();
+
+export function markRevealed(auctionId: string): boolean {
+  if (revealedAuctions.has(auctionId)) return false;
+  revealedAuctions.add(auctionId);
+  return true;
+}
+
+export function isRevealed(auctionId: string): boolean {
+  return revealedAuctions.has(auctionId);
+}

@@ -6,6 +6,9 @@ interface ILienFiAuction {
         uint256 tokenId,
         uint256 reservePrice,
         bytes32 auctionId,
-        uint256 deadline
+        uint256 deadline,
+        bytes32 listingHash
     ) external;
+
+    function setLoanManager(address _loanManager) external;
 }

@@ -1,10 +1,12 @@
 {
-  "url": "TODO: https://<your-api-host>",
+  "schedule": "0 */5 * * * *",
+  "url": "https://sealbid.onrender.com",
   "owner": "",
   "evms": [
     {
       "chainSelectorName": "ethereum-testnet-sepolia",
-      "consumerAddress": "TODO: 0x<LienFiAuction-address>",
+      "loanManagerAddress": "TODO: 0x<LoanManager-address>",
+      "lienFiAuctionAddress": "TODO: 0x<LienFiAuction-address>",
       "gasLimit": "500000"
     }
   ]
