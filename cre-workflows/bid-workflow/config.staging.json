@@ -4,7 +4,7 @@
   "evms": [
     {
       "chainSelectorName": "ethereum-testnet-sepolia",
-      "contractAddress": "0xE42Fd40Bf86448595D1EeA64a1B59757609F0C60",
+      "contractAddress": "0x5Fc73940fCFA3Fd9E36054022Ed3d0CC9cCf3559",
       "gasLimit": "500000"
     }
   ]

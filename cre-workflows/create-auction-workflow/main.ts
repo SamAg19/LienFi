@@ -34,7 +34,7 @@ const AUCTION_ABI = LienFiAuctionABI as Abi
 const ZERO_BYTES32 = "0x0000000000000000000000000000000000000000000000000000000000000000"
 
 // LoanStatus enum matches the Solidity contract
-const LOAN_STATUS_ACTIVE = 0
+const LOAN_STATUS_ACTIVE = 0n
 
 // 3 missed EMI periods (each 30 days) = default threshold
 const EMI_PERIOD_SECONDS = 30n * 24n * 3600n
@@ -55,19 +55,19 @@ const configSchema = z.object({
 })
 type Config = z.infer<typeof configSchema>
 
-type LoanTuple = readonly [
-  bigint,   // loanId
-  string,   // borrower
-  bigint,   // tokenId
-  bigint,   // principal
-  bigint,   // interestRateBps
-  bigint,   // tenureMonths
-  bigint,   // emiAmount
-  bigint,   // nextDueDate
-  bigint,   // missedPayments
-  bigint,   // remainingPrincipal
-  number,   // status (uint8)
-]
+type LoanStruct = {
+  loanId: bigint
+  borrower: string
+  tokenId: bigint
+  principal: bigint
+  interestRateBps: bigint
+  tenureMonths: bigint
+  emiAmount: bigint
+  nextDueDate: bigint
+  missedPayments: bigint
+  remainingPrincipal: bigint
+  status: number
+}
 
 const readContract = (
   evmClient: EVMClient,
@@ -191,10 +191,10 @@ const onCronTrigger = (runtime: Runtime<Config>): string => {
       abi: LOAN_MANAGER_ABI,
       functionName: "getLoan",
       data: loanRaw,
-    }) as LoanTuple
+    }) as LoanStruct
 
-    const status = loan[10]
-    const nextDueDate = loan[7]
+    const status = BigInt(loan.status)
+    const nextDueDate = loan.nextDueDate
 
     // Skip non-active loans
     if (status !== LOAN_STATUS_ACTIVE) continue
@@ -203,8 +203,8 @@ const onCronTrigger = (runtime: Runtime<Config>): string => {
     const defaultThreshold = nextDueDate + (DEFAULT_THRESHOLD_PERIODS * EMI_PERIOD_SECONDS)
     if (now <= defaultThreshold) continue
 
-    const loanId = loan[0]
-    const tokenId = loan[2]
+    const loanId = loan.loanId
+    const tokenId = loan.tokenId
     runtime.log(`Loan ${loanId} is in default (nextDueDate=${nextDueDate}, now=${now})`)
 
     // 4. Fetch listing hash from API via Confidential HTTP
@@ -270,6 +270,6 @@ const initWorkflow = (config: Config) => {
 }
 
 export async function main() {
-  const runner = await Runner.newRunner<Config>()
+  const runner = await Runner.newRunner<Config>({ configSchema })
   await runner.run(initWorkflow)
 }
