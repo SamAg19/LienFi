@@ -52,7 +52,6 @@ import {ILoanManager} from "./interfaces/ILoanManager.sol";
  *
  * @notice CRE workflows deliver signed reports via the KeystoneForwarder → onReport.
  * Dispatch is based on workflowName (bytes10) from report metadata:
- *   "create" → _createPropertyAuction
  *   "bid"    → _registerBid
  *   "settle" → _settleAuction
  *
@@ -332,18 +331,7 @@ contract LienFiAuction is ReceiverTemplate, ReentrancyGuard {
     function _processReport(bytes calldata metadata, bytes calldata report) internal override {
         (, bytes10 workflowName,) = _decodeMetadata(metadata);
 
-        if (workflowName == WORKFLOW_CREATE) {
-            (
-                bytes32 propertyId,
-                address seller,
-                uint256 tokenId,
-                bytes32 auctionId,
-                uint256 deadline,
-                uint256 reservePrice
-            ) = abi.decode(report, (bytes32, address, uint256, bytes32, uint256, uint256));
-            _createPropertyAuction(propertyId, seller, tokenId, auctionId, deadline, reservePrice);
-
-        } else if (workflowName == WORKFLOW_BID) {
+        if (workflowName == WORKFLOW_BID) {
             (bytes32 auctionId, bytes32 bidHash) =
                 abi.decode(report, (bytes32, bytes32));
             _registerBid(auctionId, bidHash);
@@ -356,47 +344,6 @@ contract LienFiAuction is ReceiverTemplate, ReentrancyGuard {
         } else {
             revert LienFiAuction__UnknownWorkflow(workflowName);
         }
-    }
-
-    /**
-     * @notice Open a sealed-bid auction for a property NFT already held in escrow.
-     * Called exclusively via CRE "create" workflow report after off-chain property verification.
-     * The NFT must have been transferred to this contract before the report is submitted.
-     */
-    function _createPropertyAuction(
-        bytes32 propertyId,
-        address seller,
-        uint256 tokenId,
-        bytes32 auctionId,
-        uint256 deadline,
-        uint256 reservePrice
-    ) internal {
-        if (auctions[auctionId].deadline != 0) {
-            revert LienFiAuction__AuctionAlreadyExists();
-        }
-        if (activeAuctionId != bytes32(0)) {
-            revert LienFiAuction__AuctionAlreadyExists();
-        }
-
-        // Verify this contract holds the NFT in escrow
-        if (IERC721(i_propertyNFT).ownerOf(tokenId) != address(this)) {
-            revert LienFiAuction__TransferFailed();
-        }
-
-        auctions[auctionId] = Auction({
-            seller: seller,
-            tokenId: tokenId,
-            deadline: deadline,
-            reservePrice: reservePrice,
-            settled: false,
-            winner: address(0),
-            settledPrice: 0,
-            listingHash: bytes32(0)
-        });
-
-        activeAuctionId = auctionId;
-
-        emit AuctionCreated(auctionId, seller, tokenId, deadline, reservePrice);
     }
 
     /// @notice Registers an opaque bid hash on-chain for the given auction.

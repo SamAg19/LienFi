@@ -1,0 +1,19 @@
+{
+  "name": "lienfi-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "demo": "tsx src/main.ts",
+    "demo:fresh": "tsx src/main.ts --fresh",
+    "demo:from": "tsx src/main.ts --from"
+  },
+  "dependencies": {
+    "viem": "^2.21.0",
+    "dotenv": "^16.4.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.0",
+    "@types/node": "^22.0.0"
+  }
+}
