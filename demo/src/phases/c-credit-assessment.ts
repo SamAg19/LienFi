@@ -1,0 +1,172 @@
+import type { Config } from "../config.js";
+import type { Clients } from "../clients.js";
+import type { Checkpoint } from "../checkpoint.js";
+import { saveCheckpoint } from "../checkpoint.js";
+import { createLogger } from "../logger.js";
+import { shortAddr, retry, sleep, waitForFinalization, formatUsdc } from "../utils.js";
+import { LoanManagerABI } from "../abis.js";
+import { runCREWorkflow } from "../cre.js";
+
+export async function phaseC(
+  config: Config,
+  clients: Clients,
+  checkpoint: Checkpoint
+): Promise<void> {
+  const log = createLogger("C");
+  log.header();
+
+  if (checkpoint.phaseC?.completedAt) {
+    log.info("Already completed, skipping.");
+    return;
+  }
+
+  const borrowerAddr = clients.borrower.account.address;
+  const tokenId = checkpoint.phaseB?.tokenId;
+  if (!tokenId) throw new Error("Phase B must complete first (need tokenId)");
+
+  // Step 1: Generate Plaid sandbox access token
+  log.step(1, 6, "Generating Plaid sandbox access token");
+
+  const publicTokenRes = await retry(
+    async () => {
+      const res = await fetch("https://sandbox.plaid.com/sandbox/public_token/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: config.plaidClientId,
+          secret: config.plaidSecret,
+          institution_id: "ins_109508",
+          initial_products: ["transactions"],
+        }),
+      });
+      if (!res.ok) throw new Error(`Plaid error: ${res.status} ${await res.text()}`);
+      return res.json();
+    },
+    { label: "plaid-public-token" }
+  );
+
+  const exchangeRes = await retry(
+    async () => {
+      const res = await fetch("https://sandbox.plaid.com/item/public_token/exchange", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: config.plaidClientId,
+          secret: config.plaidSecret,
+          public_token: publicTokenRes.public_token,
+        }),
+      });
+      if (!res.ok) throw new Error(`Plaid exchange error: ${res.status} ${await res.text()}`);
+      return res.json();
+    },
+    { label: "plaid-exchange" }
+  );
+
+  const plaidAccessToken = exchangeRes.access_token;
+  log.verify("Plaid access token", `${plaidAccessToken.slice(0, 20)}...`);
+
+  // Step 2: Submit loan request to API
+  log.step(2, 6, "Submitting loan request to API");
+
+  const loanReqRes = await retry(
+    async () => {
+      const res = await fetch(`${config.apiUrl}/loan-request`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          borrowerAddress: borrowerAddr,
+          plaidToken: plaidAccessToken,
+          tokenId,
+          requestedAmount: config.loanRequestAmount,
+          tenureMonths: config.loanTenureMonths,
+          nonce: config.loanNonce,
+        }),
+      });
+      if (!res.ok) throw new Error(`API error: ${res.status} ${await res.text()}`);
+      return res.json();
+    },
+    { label: "loan-request", maxAttempts: 3, delayMs: 10000 }
+  );
+
+  const requestHash: string = loanReqRes.requestHash;
+  log.verify("Request Hash", requestHash);
+
+  // Step 3: Submit requestHash on-chain
+  log.step(3, 6, `Submitting requestHash on-chain as borrower ${shortAddr(borrowerAddr)}`);
+  const submitTxHash = await clients.borrower.writeContract({
+    address: config.loanManagerAddress,
+    abi: LoanManagerABI,
+    functionName: "submitRequest",
+    args: [requestHash as `0x${string}`],
+  });
+  const submitReceipt = await clients.publicClient.waitForTransactionReceipt({
+    hash: submitTxHash,
+  });
+  log.tx("submitRequest", submitTxHash);
+  log.verify("Block", submitReceipt.blockNumber.toString());
+
+  // Step 4: Wait for finalization
+  log.step(4, 6, "Waiting for Sepolia finalization (~15-20 min)");
+  await waitForFinalization(clients.publicClient, submitTxHash, "submitRequest tx");
+
+  // Step 5: Run CRE credit-assessment workflow
+  log.step(5, 6, "Running CRE credit-assessment workflow");
+
+  const creResult = await runCREWorkflow({
+    creDir: config.creWorkflowsDir,
+    workflowDir: "credit-assessment-workflow",
+    evmTxHash: submitTxHash,
+    evmEventIndex: 0,
+    broadcast: true,
+  });
+
+  if (!creResult.success) {
+    log.error("CRE workflow failed:");
+    console.log(creResult.stdout);
+    console.error(creResult.stderr);
+    throw new Error("Credit assessment CRE workflow failed");
+  }
+  log.info("CRE workflow completed");
+
+  // Step 6: Poll for verdict on-chain
+  log.step(6, 6, "Polling for credit verdict on-chain");
+
+  let approved = false;
+  for (let i = 0; i < 20; i++) {
+    try {
+      const approval = (await clients.publicClient.readContract({
+        address: config.loanManagerAddress,
+        abi: LoanManagerABI,
+        functionName: "pendingApprovals",
+        args: [borrowerAddr],
+      })) as any[];
+
+      // Approval struct: (requestHash, tokenId, approvedLimit, tenureMonths, computedEMI, expiresAt, exists)
+      const exists = approval[6];
+      if (exists) {
+        approved = true;
+        log.verify("Approved Limit", formatUsdc(BigInt(approval[2])));
+        log.verify("Computed EMI", formatUsdc(BigInt(approval[4])));
+        log.verify("Expires At", new Date(Number(approval[5]) * 1000).toISOString());
+        break;
+      }
+    } catch {
+      // mapping might not exist yet
+    }
+    log.wait(`Verdict not yet on-chain, polling... (${i + 1}/20)`);
+    await sleep(30_000);
+  }
+
+  if (!approved) {
+    throw new Error("Credit assessment verdict not found on-chain after polling");
+  }
+
+  checkpoint.phaseC = {
+    plaidAccessToken,
+    requestHash,
+    submitTxHash,
+    completedAt: new Date().toISOString(),
+  };
+  saveCheckpoint(checkpoint);
+  log.success("Credit assessment approved");
+}
