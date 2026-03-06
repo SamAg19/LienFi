@@ -1,49 +1,5 @@
-import type { PublicClient } from "viem";
-
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-export async function waitForFinalization(
-  publicClient: PublicClient,
-  txHash: `0x${string}`,
-  label: string
-): Promise<void> {
-  const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
-  const targetBlock = receipt.blockNumber;
-
-  console.log(
-    `  FINALIZATION: ${label} is in block ${targetBlock}. Waiting...`
-  );
-
-  const pollIntervalMs = 30_000;
-  const maxWaitMs = 25 * 60 * 1000;
-  const startTime = Date.now();
-
-  while (Date.now() - startTime < maxWaitMs) {
-    const finalizedBlock = await publicClient.getBlock({
-      blockTag: "finalized",
-    });
-
-    if (finalizedBlock.number >= targetBlock) {
-      console.log(
-        `  FINALIZATION: Block ${targetBlock} finalized (current finalized: ${finalizedBlock.number})`
-      );
-      return;
-    }
-
-    const remaining = Number(targetBlock - finalizedBlock.number);
-    const estimatedMin = ((remaining * 12) / 60).toFixed(1);
-    console.log(
-      `  FINALIZATION: finalized=${finalizedBlock.number}, need=${targetBlock}, ~${estimatedMin} min remaining`
-    );
-
-    await sleep(pollIntervalMs);
-  }
-
-  throw new Error(
-    `Finalization timeout after 25 minutes for block ${targetBlock}`
-  );
 }
 
 export async function retry<T>(

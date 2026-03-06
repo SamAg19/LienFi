@@ -6,7 +6,7 @@ import {
   encodeCallMsg,
   bytesToHex,
   hexToBase64,
-  LAST_FINALIZED_BLOCK_NUMBER,
+  LATEST_BLOCK_NUMBER,
   TxStatus,
   handler,
   consensusIdenticalAggregation,
@@ -85,7 +85,7 @@ const readContract = (
         to,
         data: callData,
       }),
-      blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+      blockNumber: LATEST_BLOCK_NUMBER,
     })
     .result()
   return bytesToHex(result.data)

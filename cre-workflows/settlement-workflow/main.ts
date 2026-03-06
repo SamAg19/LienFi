@@ -6,7 +6,7 @@ import {
   encodeCallMsg,
   bytesToHex,
   hexToBase64,
-  LAST_FINALIZED_BLOCK_NUMBER,
+  LATEST_BLOCK_NUMBER,
   TxStatus,
   handler,
   consensusIdenticalAggregation,
@@ -94,7 +94,7 @@ const onCronTrigger = (runtime: Runtime<Config>): string => {
         to: contractAddress as Address,
         data: callData,
       }),
-      blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+      blockNumber: LATEST_BLOCK_NUMBER,
     })
     .result()
 

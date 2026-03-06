@@ -436,7 +436,7 @@ cre workflow simulate credit-assessment-workflow \
 
 ### 8.2 Wait for Sepolia Finalization
 
-The workflow uses `LAST_FINALIZED_BLOCK_NUMBER` for on-chain reads. On Sepolia, the finalized block trails the latest block by ~80 blocks (~16 minutes). If you just deployed contracts or deposited USDC, **wait ~15-20 minutes** before running the simulation, otherwise the liquidity check will fail with:
+The workflow uses `LATEST_BLOCK_NUMBER` for on-chain reads. On Sepolia, the finalized block trails the latest block by ~80 blocks (~16 minutes). If you just deployed contracts or deposited USDC, **wait ~15-20 minutes** before running the simulation, otherwise the liquidity check will fail with:
 
 ```
 Cannot decode zero data ("0x") with ABI parameters.

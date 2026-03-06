@@ -80,8 +80,7 @@ cre auth login
     ├── Fetch all bids from MongoDB
     ├── Sort by amount descending
     ├── Winner = highest bidder
-    ├── Price = second-highest bid (or reserve if 1 bid)
-    └── HMAC proof for integrity
+    └── Price = second-highest bid (or reserve if 1 bid)
         |
         v
 [3. Encode report: abi.encode(auctionId, winner, price)]
@@ -156,7 +155,6 @@ The deployed API needs these env vars for bid validation:
 VERIFYING_CONTRACT=<LIENFI_AUCTION_ADDRESS>   # EIP-712 domain + on-chain reads
 USDC_ADDRESS=<MOCK_USDC_ADDRESS>               # Pool balance checks
 RPC_URL=<SEPOLIA_RPC_URL>                      # On-chain reads
-HMAC_KEY=<any_secret_string>                   # Settlement HMAC proof
 ```
 
 ### 3.5 Workflow Names
@@ -448,7 +446,6 @@ cast call $LOAN_MANAGER_ADDRESS \
 - **Highest bidder wins**
 - **Winner pays second-highest bid** (privacy-preserving: only winner/price revealed)
 - **Single bid**: winner pays reserve price
-- **HMAC proof**: `HMAC-SHA256(key, "winner:price")` for integrity
 
 ---
 

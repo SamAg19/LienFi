@@ -3,7 +3,7 @@ import type { Clients } from "../clients.js";
 import type { Checkpoint } from "../checkpoint.js";
 import { saveCheckpoint } from "../checkpoint.js";
 import { createLogger } from "../logger.js";
-import { shortAddr, waitForFinalization, formatUsdc } from "../utils.js";
+import { shortAddr, formatUsdc } from "../utils.js";
 import { LoanManagerABI, LienFiAuctionABI, PropertyNFTABI } from "../abis.js";
 import { runCREWorkflow } from "../cre.js";
 
@@ -21,20 +21,12 @@ export async function phaseF1(
   }
 
   const loanId = checkpoint.phaseD?.loanId;
-  const claimTxHash = checkpoint.phaseD?.claimTxHash;
   const tokenId = checkpoint.phaseB?.tokenId;
   if (!loanId) throw new Error("Phase D must complete first (need loanId)");
-  if (!claimTxHash) throw new Error("Phase D must complete first (need claimTxHash)");
   if (!tokenId) throw new Error("Phase B must complete first (need tokenId)");
 
-  // Step 1: Wait for finalization of the last relevant tx
-  // The CRE create-auction workflow reads loan state from the finalized block
-  const lastTx = (checkpoint.phaseE?.lastRepayTxHash || claimTxHash) as `0x${string}`;
-  log.step(1, 4, "Waiting for Sepolia finalization of loan state");
-  await waitForFinalization(clients.publicClient, lastTx, "loan state tx");
-
-  // Step 2: Run CRE create-auction workflow
-  log.step(2, 4, "Running CRE create-auction workflow");
+  // Step 1: Run CRE create-auction workflow
+  log.step(1, 3, "Running CRE create-auction workflow");
   log.info(
     "NOTE: create-auction-workflow/main.ts must have the testing override applied (defaultThreshold = 0n)"
   );
@@ -53,8 +45,8 @@ export async function phaseF1(
   }
   log.info("CRE workflow completed");
 
-  // Step 3: Verify auction created on-chain
-  log.step(3, 4, "Verifying auction on-chain");
+  // Step 2: Verify auction created on-chain
+  log.step(2, 3, "Verifying auction on-chain");
 
   const auctionId = (await clients.publicClient.readContract({
     address: config.lienFiAuctionAddress,
@@ -85,8 +77,8 @@ export async function phaseF1(
   log.verify("Reserve Price", formatUsdc(reservePrice));
   log.verify("Settled", String(auction[4]));
 
-  // Step 4: Verify loan is defaulted and NFT transferred
-  log.step(4, 4, "Verifying loan default state");
+  // Step 3: Verify loan is defaulted and NFT transferred
+  log.step(3, 3, "Verifying loan default state");
 
   const loan = (await clients.publicClient.readContract({
     address: config.loanManagerAddress,

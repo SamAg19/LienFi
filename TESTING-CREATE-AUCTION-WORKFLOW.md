@@ -246,7 +246,7 @@ if (now <= defaultThreshold) continue
 
 ## 7. Wait for Sepolia Finalization
 
-The CRE simulator reads from `LAST_FINALIZED_BLOCK_NUMBER`. Sepolia finalization trails the latest block by ~80 blocks (~16 minutes).
+The CRE simulator reads from `LATEST_BLOCK_NUMBER`. Sepolia finalization trails the latest block by ~80 blocks (~16 minutes).
 
 Check finalization status:
 

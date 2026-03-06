@@ -1,11 +1,9 @@
-import crypto from "crypto";
 import { StoredBid } from "./store";
 
 export interface SettlementResult {
   auctionId: string;
   winner: string;
   price: string; // uint256 decimal string — token-agnostic
-  proof: string; // HMAC hex
 }
 
 /**
@@ -15,16 +13,12 @@ export interface SettlementResult {
  * - Highest bidder wins
  * - Winner pays the second-highest bid price
  * - If only one bid, winner pays the reserve price
- * - HMAC proof ties the result to the settlement for on-chain verification
  *
  * Token-agnostic: amounts compared as bigints regardless of decimal scheme.
- *
- * TODO (Day 2): Replace stub with real implementation
  */
 export function settleVickrey(
   bids: StoredBid[],
-  reservePrice: bigint,
-  hmacKey: string
+  reservePrice: bigint
 ): SettlementResult {
   if (bids.length === 0) {
     throw new Error("No bids to settle");
@@ -45,16 +39,9 @@ export function settleVickrey(
   const price =
     sorted.length > 1 ? BigInt(sorted[1].amount) : reservePrice;
 
-  // HMAC proof for on-chain verification
-  const hmac = crypto
-    .createHmac("sha256", hmacKey)
-    .update(`${winner}:${price.toString()}`)
-    .digest("hex");
-
   return {
     auctionId: sorted[0].auctionId,
     winner,
     price: price.toString(),
-    proof: `0x${hmac}`,
   };
 }

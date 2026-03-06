@@ -16,8 +16,7 @@ const router = Router();
  * Returns: {
  *   auctionId: string,
  *   winner: string (address),
- *   price: string (uint256 decimal string),
- *   proof: string (HMAC hex)
+ *   price: string (uint256 decimal string)
  * }
  */
 router.post("/", async (req: Request, res: Response): Promise<void> => {
@@ -59,9 +58,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     }
 
     // --- Run Vickrey settlement ---
-    const hmacKey = process.env.HMAC_KEY || "default-hmac-key";
-
-    const result = settleVickrey(bids, reservePrice, hmacKey);
+    const result = settleVickrey(bids, reservePrice);
 
     // --- Update store ---
     await settleAuctionInStore(auctionId, result.winner, result.price);

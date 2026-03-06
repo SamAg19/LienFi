@@ -5,7 +5,7 @@ import {
   encodeCallMsg,
   hexToBase64,
   bytesToHex,
-  LAST_FINALIZED_BLOCK_NUMBER,
+  LATEST_BLOCK_NUMBER,
   TxStatus,
   handler,
   consensusIdenticalAggregation,
@@ -500,7 +500,7 @@ const onLoanRequestSubmitted = (runtime: Runtime<Config>, log: EVMLog): string =
         to: lendingPoolAddress as Address,
         data: liquidityCallData,
       }),
-      blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+      blockNumber: LATEST_BLOCK_NUMBER,
     })
     .result()
 

@@ -3,7 +3,7 @@ import type { Clients } from "../clients.js";
 import type { Checkpoint } from "../checkpoint.js";
 import { saveCheckpoint } from "../checkpoint.js";
 import { createLogger } from "../logger.js";
-import { shortAddr, retry, sleep, waitForFinalization, formatUsdc } from "../utils.js";
+import { shortAddr, retry, sleep, formatUsdc } from "../utils.js";
 import { LoanManagerABI } from "../abis.js";
 import { runCREWorkflow } from "../cre.js";
 
@@ -25,7 +25,7 @@ export async function phaseC(
   if (!tokenId) throw new Error("Phase B must complete first (need tokenId)");
 
   // Step 1: Generate Plaid sandbox access token
-  log.step(1, 6, "Generating Plaid sandbox access token");
+  log.step(1, 5, "Generating Plaid sandbox access token");
 
   const publicTokenRes = await retry(
     async () => {
@@ -66,7 +66,7 @@ export async function phaseC(
   log.verify("Plaid access token", `${plaidAccessToken.slice(0, 20)}...`);
 
   // Step 2: Submit loan request to API
-  log.step(2, 6, "Submitting loan request to API");
+  log.step(2, 5, "Submitting loan request to API");
 
   const loanReqRes = await retry(
     async () => {
@@ -92,7 +92,7 @@ export async function phaseC(
   log.verify("Request Hash", requestHash);
 
   // Step 3: Submit requestHash on-chain
-  log.step(3, 6, `Submitting requestHash on-chain as borrower ${shortAddr(borrowerAddr)}`);
+  log.step(3, 5, `Submitting requestHash on-chain as borrower ${shortAddr(borrowerAddr)}`);
   const submitTxHash = await clients.borrower.writeContract({
     address: config.loanManagerAddress,
     abi: LoanManagerABI,
@@ -105,12 +105,8 @@ export async function phaseC(
   log.tx("submitRequest", submitTxHash);
   log.verify("Block", submitReceipt.blockNumber.toString());
 
-  // Step 4: Wait for finalization
-  log.step(4, 6, "Waiting for Sepolia finalization (~15-20 min)");
-  await waitForFinalization(clients.publicClient, submitTxHash, "submitRequest tx");
-
-  // Step 5: Run CRE credit-assessment workflow
-  log.step(5, 6, "Running CRE credit-assessment workflow");
+  // Step 4: Run CRE credit-assessment workflow
+  log.step(4, 5, "Running CRE credit-assessment workflow");
 
   const creResult = await runCREWorkflow({
     creDir: config.creWorkflowsDir,
@@ -128,8 +124,8 @@ export async function phaseC(
   }
   log.info("CRE workflow completed");
 
-  // Step 6: Poll for verdict on-chain
-  log.step(6, 6, "Polling for credit verdict on-chain");
+  // Step 5: Poll for verdict on-chain
+  log.step(5, 5, "Polling for credit verdict on-chain");
 
   let approved = false;
   for (let i = 0; i < 20; i++) {

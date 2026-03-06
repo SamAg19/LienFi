@@ -3,7 +3,7 @@ import type { Clients } from "../clients.js";
 import type { Checkpoint } from "../checkpoint.js";
 import { saveCheckpoint } from "../checkpoint.js";
 import { createLogger } from "../logger.js";
-import { shortAddr, formatUsdc, waitForFinalization, sleep } from "../utils.js";
+import { shortAddr, formatUsdc, sleep } from "../utils.js";
 import { MockUSDCABI, LienFiAuctionABI } from "../abis.js";
 import { runCREWorkflow } from "../cre.js";
 import type { WalletClient } from "viem";
@@ -141,7 +141,7 @@ export async function phaseF2(
   const lockUntil = BigInt(deadlineNum + 86400); // deadline + 1 day
 
   // Step 1: Set up both bidders
-  log.step(1, 4, "Setting up Bidder A and Bidder B");
+  log.step(1, 3, "Setting up Bidder A and Bidder B");
 
   const depositHashA = await setupBidder(
     "Bidder A",
@@ -173,16 +173,8 @@ export async function phaseF2(
   };
   saveCheckpoint(checkpoint);
 
-  // Step 2: Wait for finalization of deposits
-  log.step(2, 4, "Waiting for finalization of bidder deposits");
-  await waitForFinalization(
-    clients.publicClient,
-    depositHashB as `0x${string}`,
-    "bidder deposits"
-  );
-
-  // Step 3: Generate and submit signed bids via CRE
-  log.step(3, 4, "Generating EIP-712 signed bids and submitting via CRE");
+  // Step 2: Generate and submit signed bids via CRE
+  log.step(2, 3, "Generating EIP-712 signed bids and submitting via CRE");
 
   // Bidder A — higher bid
   log.info(`--- Bidder A bid: ${formatUsdc(config.bidAAmount)} ---`);
@@ -236,8 +228,8 @@ export async function phaseF2(
   }
   log.info("Bidder B bid submitted");
 
-  // Step 4: Verify bid count on-chain
-  log.step(4, 4, "Verifying bids registered on-chain");
+  // Step 3: Verify bid count on-chain
+  log.step(3, 3, "Verifying bids registered on-chain");
   const bidCount = (await clients.publicClient.readContract({
     address: config.lienFiAuctionAddress,
     abi: LienFiAuctionABI,
