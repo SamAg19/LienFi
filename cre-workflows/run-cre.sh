@@ -2,18 +2,18 @@
 # Run CRE workflow simulation and forward output to the API for live terminal display.
 #
 # Usage:
-#   ./run-cre.sh <workflow-folder> <request-hash> [extra-args...]
+#   ./run-cre.sh <workflow-folder> <evm-tx-hash> <request-hash>
 #
 # Examples:
-#   ./run-cre.sh credit-assessment-workflow 0x7123...fea6
-#   ./run-cre.sh create-auction-workflow 0xabc...def
+#   ./run-cre.sh credit-assessment-workflow 0xabc...txhash 0x7123...requesthash
 
 set -euo pipefail
 
 API_URL="${API_URL:-https://sealbid.onrender.com}"
-WORKFLOW_DIR="${1:?Usage: ./run-cre.sh <workflow-folder> <request-hash>}"
-REQUEST_HASH="${2:?Usage: ./run-cre.sh <workflow-folder> <request-hash>}"
-shift 2
+WORKFLOW_DIR="${1:?Usage: ./run-cre.sh <workflow-folder> <evm-tx-hash> <request-hash>}"
+EVM_TX_HASH="${2:?Usage: ./run-cre.sh <workflow-folder> <evm-tx-hash> <request-hash>}"
+REQUEST_HASH="${3:?Usage: ./run-cre.sh <workflow-folder> <evm-tx-hash> <request-hash>}"
+shift 3
 
 # Post a single line to the API
 post_line() {
@@ -26,6 +26,7 @@ post_line() {
 
 # Signal start
 post_line "▶ CRE simulation started: $WORKFLOW_DIR"
+post_line "  evm-tx-hash: $EVM_TX_HASH"
 post_line "  requestHash: $REQUEST_HASH"
 post_line "---"
 
@@ -36,6 +37,7 @@ cre workflow simulate "$WORKFLOW_DIR" \
   --trigger-index 0 \
   --broadcast \
   --verbose \
+  --evm-tx-hash "$EVM_TX_HASH" \
   "$@" 2>&1 | while IFS= read -r line; do
     # Print to local terminal as usual
     echo "$line"
