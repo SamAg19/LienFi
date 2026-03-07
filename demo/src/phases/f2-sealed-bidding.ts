@@ -138,98 +138,125 @@ export async function phaseF2(
   if (!auctionDeadline) throw new Error("Phase F1 must complete first (need auctionDeadline)");
 
   const deadlineNum = Number(auctionDeadline);
-  const lockUntil = BigInt(deadlineNum + 86400); // deadline + 1 day
+  const lockUntil = BigInt(deadlineNum + 86400);
+  const done = checkpoint.phaseF2?.step ?? 0;
 
-  // Step 1: Set up both bidders
-  log.step(1, 3, "Setting up Bidder A and Bidder B");
+  // Step 1: Set up Bidder A
+  if (done < 1) {
+    log.step(1, 5, "Setting up Bidder A");
 
-  const depositHashA = await setupBidder(
-    "Bidder A",
-    clients.bidderA,
-    config,
-    clients,
-    config.bidderDepositAmount,
-    lockUntil,
-    BigInt(Date.now()), // unique nullifierHash
-    log
-  );
+    const depositHashA = await setupBidder(
+      "Bidder A",
+      clients.bidderA,
+      config,
+      clients,
+      config.bidderDepositAmount,
+      lockUntil,
+      BigInt(Date.now()),
+      log
+    );
 
-  await sleep(3000); // brief pause to avoid nonce issues
-
-  const depositHashB = await setupBidder(
-    "Bidder B",
-    clients.bidderB,
-    config,
-    clients,
-    config.bidderDepositAmount,
-    lockUntil,
-    BigInt(Date.now() + 1), // different nullifierHash
-    log
-  );
-
-  checkpoint.phaseF2 = {
-    bidderADepositTxHash: depositHashA,
-    bidderBDepositTxHash: depositHashB,
-  };
-  saveCheckpoint(checkpoint);
-
-  // Step 2: Generate and submit signed bids via CRE
-  log.step(2, 3, "Generating EIP-712 signed bids and submitting via CRE");
-
-  // Bidder A — higher bid
-  log.info(`--- Bidder A bid: ${formatUsdc(config.bidAAmount)} ---`);
-  const bidPayloadA = await signBid(
-    clients.bidderA,
-    config,
-    auctionId,
-    config.bidAAmount,
-    1,
-    deadlineNum
-  );
-
-  const creResultA = await runCREWorkflow({
-    creDir: config.creWorkflowsDir,
-    workflowDir: "bid-workflow",
-    httpPayload: bidPayloadA,
-    broadcast: true,
-  });
-
-  if (!creResultA.success) {
-    log.error("Bidder A CRE workflow failed:");
-    console.log(creResultA.stdout);
-    console.error(creResultA.stderr);
-    throw new Error("Bid CRE workflow failed for Bidder A");
+    checkpoint.phaseF2 = { ...checkpoint.phaseF2, step: 1, bidderADepositTxHash: depositHashA };
+    saveCheckpoint(checkpoint);
+  } else {
+    log.step(1, 5, "Bidder A setup — already done, skipping");
   }
-  log.info("Bidder A bid submitted");
 
-  // Bidder B — lower bid
-  log.info(`--- Bidder B bid: ${formatUsdc(config.bidBAmount)} ---`);
-  const bidPayloadB = await signBid(
-    clients.bidderB,
-    config,
-    auctionId,
-    config.bidBAmount,
-    1,
-    deadlineNum
-  );
+  // Step 2: Set up Bidder B
+  if (done < 2) {
+    log.step(2, 5, "Setting up Bidder B");
 
-  const creResultB = await runCREWorkflow({
-    creDir: config.creWorkflowsDir,
-    workflowDir: "bid-workflow",
-    httpPayload: bidPayloadB,
-    broadcast: true,
-  });
+    await sleep(3000);
 
-  if (!creResultB.success) {
-    log.error("Bidder B CRE workflow failed:");
-    console.log(creResultB.stdout);
-    console.error(creResultB.stderr);
-    throw new Error("Bid CRE workflow failed for Bidder B");
+    const depositHashB = await setupBidder(
+      "Bidder B",
+      clients.bidderB,
+      config,
+      clients,
+      config.bidderDepositAmount,
+      lockUntil,
+      BigInt(Date.now() + 1),
+      log
+    );
+
+    checkpoint.phaseF2 = { ...checkpoint.phaseF2, step: 2, bidderBDepositTxHash: depositHashB };
+    saveCheckpoint(checkpoint);
+  } else {
+    log.step(2, 5, "Bidder B setup — already done, skipping");
   }
-  log.info("Bidder B bid submitted");
 
-  // Step 3: Verify bid count on-chain
-  log.step(3, 3, "Verifying bids registered on-chain");
+  // Step 3: Submit Bidder A's signed bid via CRE
+  if (done < 3) {
+    log.step(3, 5, `Submitting Bidder A bid: ${formatUsdc(config.bidAAmount)}`);
+
+    const bidPayloadA = await signBid(
+      clients.bidderA,
+      config,
+      auctionId,
+      config.bidAAmount,
+      1,
+      deadlineNum
+    );
+
+    const creResultA = await runCREWorkflow({
+      creDir: config.creWorkflowsDir,
+      workflowDir: "bid-workflow",
+      httpPayload: bidPayloadA,
+      broadcast: true,
+    });
+
+    if (!creResultA.success) {
+      log.error("Bidder A CRE workflow failed:");
+      console.log(creResultA.stdout);
+      console.error(creResultA.stderr);
+      throw new Error("Bid CRE workflow failed for Bidder A");
+    }
+    log.info("Bidder A bid submitted");
+
+    checkpoint.phaseF2 = { ...checkpoint.phaseF2, step: 3, bidderABidSubmitted: true };
+    saveCheckpoint(checkpoint);
+  } else {
+    log.step(3, 5, "Bidder A bid — already done, skipping");
+  }
+
+  // Step 4: Submit Bidder B's signed bid via CRE
+  if (done < 4) {
+    log.step(4, 5, `Submitting Bidder B bid: ${formatUsdc(config.bidBAmount)}`);
+
+    await sleep(10_000);
+
+    const bidPayloadB = await signBid(
+      clients.bidderB,
+      config,
+      auctionId,
+      config.bidBAmount,
+      1,
+      deadlineNum
+    );
+
+    const creResultB = await runCREWorkflow({
+      creDir: config.creWorkflowsDir,
+      workflowDir: "bid-workflow",
+      httpPayload: bidPayloadB,
+      broadcast: true,
+    });
+
+    if (!creResultB.success) {
+      log.error("Bidder B CRE workflow failed:");
+      console.log(creResultB.stdout);
+      console.error(creResultB.stderr);
+      throw new Error("Bid CRE workflow failed for Bidder B");
+    }
+    log.info("Bidder B bid submitted");
+
+    checkpoint.phaseF2 = { ...checkpoint.phaseF2, step: 4, bidderBBidSubmitted: true };
+    saveCheckpoint(checkpoint);
+  } else {
+    log.step(4, 5, "Bidder B bid — already done, skipping");
+  }
+
+  // Step 5: Verify bid count on-chain
+  log.step(5, 5, "Verifying bids registered on-chain");
   const bidCount = (await clients.publicClient.readContract({
     address: config.lienFiAuctionAddress,
     abi: LienFiAuctionABI,
@@ -244,6 +271,7 @@ export async function phaseF2(
 
   checkpoint.phaseF2 = {
     ...checkpoint.phaseF2,
+    step: 5,
     bidCount: Number(bidCount),
     completedAt: new Date().toISOString(),
   };

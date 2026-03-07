@@ -7,47 +7,61 @@ const CHECKPOINT_PATH = resolve(__dirname, "..", "checkpoint.json");
 
 export interface Checkpoint {
   phaseA?: {
-    depositTxHash: string;
-    completedAt: string;
+    step?: number;
+    mintTxHash?: string;
+    approveTxHash?: string;
+    depositTxHash?: string;
+    completedAt?: string;
   };
   phaseB?: {
-    tokenId: number;
-    metadataHash: string;
-    mintTxHash: string;
-    completedAt: string;
+    step?: number;
+    tokenId?: number;
+    metadataHash?: string;
+    mintTxHash?: string;
+    completedAt?: string;
   };
   phaseC?: {
-    plaidAccessToken: string;
-    requestHash: string;
-    submitTxHash: string;
-    completedAt: string;
+    step?: number;
+    plaidAccessToken?: string;
+    requestHash?: string;
+    submitTxHash?: string;
+    completedAt?: string;
   };
   phaseD?: {
-    loanId: number;
-    claimTxHash: string;
-    completedAt: string;
+    step?: number;
+    loanId?: number;
+    approveTxHash?: string;
+    claimTxHash?: string;
+    completedAt?: string;
   };
   phaseE?: {
-    repaymentCount: number;
-    lastRepayTxHash: string;
-    completedAt: string;
+    step?: number;
+    repaymentCount?: number;
+    lastRepayTxHash?: string;
+    stoppedAt?: string;
+    completedAt?: string;
   };
   phaseF1?: {
-    auctionId: string;
-    auctionDeadline: string;
-    reservePrice: string;
-    completedAt: string;
+    step?: number;
+    auctionId?: string;
+    auctionDeadline?: string;
+    reservePrice?: string;
+    completedAt?: string;
   };
   phaseF2?: {
+    step?: number;
     bidderADepositTxHash?: string;
     bidderBDepositTxHash?: string;
+    bidderABidSubmitted?: boolean;
+    bidderBBidSubmitted?: boolean;
     bidCount?: number;
     completedAt?: string;
   };
   phaseF3?: {
-    winner: string;
-    settledPrice: string;
-    completedAt: string;
+    step?: number;
+    winner?: string;
+    settledPrice?: string;
+    completedAt?: string;
   };
 }
 

@@ -25,25 +25,34 @@ export async function phaseF1(
   if (!loanId) throw new Error("Phase D must complete first (need loanId)");
   if (!tokenId) throw new Error("Phase B must complete first (need tokenId)");
 
+  const done = checkpoint.phaseF1?.step ?? 0;
+
   // Step 1: Run CRE create-auction workflow
-  log.step(1, 3, "Running CRE create-auction workflow");
-  log.info(
-    "NOTE: create-auction-workflow/main.ts must have the testing override applied (defaultThreshold = 0n)"
-  );
+  if (done < 1) {
+    log.step(1, 3, "Running CRE create-auction workflow");
+    log.info(
+      "NOTE: create-auction-workflow/main.ts must have the testing override applied (defaultThreshold = 0n)"
+    );
 
-  const creResult = await runCREWorkflow({
-    creDir: config.creWorkflowsDir,
-    workflowDir: "create-auction-workflow",
-    broadcast: true,
-  });
+    const creResult = await runCREWorkflow({
+      creDir: config.creWorkflowsDir,
+      workflowDir: "create-auction-workflow",
+      broadcast: true,
+    });
 
-  if (!creResult.success) {
-    log.error("CRE workflow failed:");
-    console.log(creResult.stdout);
-    console.error(creResult.stderr);
-    throw new Error("Create-auction CRE workflow failed");
+    if (!creResult.success) {
+      log.error("CRE workflow failed:");
+      console.log(creResult.stdout);
+      console.error(creResult.stderr);
+      throw new Error("Create-auction CRE workflow failed");
+    }
+    log.info("CRE workflow completed");
+
+    checkpoint.phaseF1 = { ...checkpoint.phaseF1, step: 1 };
+    saveCheckpoint(checkpoint);
+  } else {
+    log.step(1, 3, "CRE create-auction workflow — already done, skipping");
   }
-  log.info("CRE workflow completed");
 
   // Step 2: Verify auction created on-chain
   log.step(2, 3, "Verifying auction on-chain");
@@ -59,7 +68,6 @@ export async function phaseF1(
   }
   log.verify("Auction ID", auctionId);
 
-  // Read auction struct
   const auction = (await clients.publicClient.readContract({
     address: config.lienFiAuctionAddress,
     abi: LienFiAuctionABI,
@@ -67,7 +75,6 @@ export async function phaseF1(
     args: [auctionId],
   })) as any[];
 
-  // Auction struct: (seller, tokenId, deadline, reservePrice, settled, winner, settledPrice, listingHash)
   const deadline = BigInt(auction[2]);
   const reservePrice = BigInt(auction[3]);
 
@@ -85,9 +92,9 @@ export async function phaseF1(
     abi: LoanManagerABI,
     functionName: "getLoan",
     args: [BigInt(loanId)],
-  })) as any[];
+  })) as any;
 
-  const loanStatus = Number(loan[10]);
+  const loanStatus = Number(loan.status);
   log.verify("Loan Status", loanStatus === 1 ? "DEFAULTED" : String(loanStatus));
 
   const nftOwner = (await clients.publicClient.readContract({
@@ -99,6 +106,8 @@ export async function phaseF1(
   log.verify("NFT held by", `${shortAddr(nftOwner)} (LienFiAuction)`);
 
   checkpoint.phaseF1 = {
+    ...checkpoint.phaseF1,
+    step: 3,
     auctionId,
     auctionDeadline: deadline.toString(),
     reservePrice: reservePrice.toString(),

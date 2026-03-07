@@ -36,8 +36,7 @@ const ZERO_BYTES32 = "0x00000000000000000000000000000000000000000000000000000000
 // LoanStatus enum matches the Solidity contract
 const LOAN_STATUS_ACTIVE = 0n
 
-// 3 missed EMI periods (each 30 days) = default threshold
-const EMI_PERIOD_SECONDS = 30n * 24n * 3600n
+// 3 missed EMI periods = default threshold
 const DEFAULT_THRESHOLD_PERIODS = 3n
 
 const configSchema = z.object({
@@ -174,7 +173,20 @@ const onCronTrigger = (runtime: Runtime<Config>): string => {
     return "no-op"
   }
 
-  runtime.log(`Scanning ${loanCount} loans for defaults...`)
+  // Read EMI_PERIOD from contract
+  const emiPeriodRaw = readContract(
+    evmClient, runtime,
+    loanManagerAddress as Address,
+    LOAN_MANAGER_ABI,
+    "EMI_PERIOD"
+  )
+  const emiPeriodSeconds = decodeFunctionResult({
+    abi: LOAN_MANAGER_ABI,
+    functionName: "EMI_PERIOD",
+    data: emiPeriodRaw,
+  }) as bigint
+
+  runtime.log(`Scanning ${loanCount} loans for defaults (EMI_PERIOD=${emiPeriodSeconds}s)...`)
 
   // 3. Scan each loan for default condition
   const now = BigInt(Math.floor(Date.now() / 1000))
@@ -200,7 +212,8 @@ const onCronTrigger = (runtime: Runtime<Config>): string => {
     if (status !== LOAN_STATUS_ACTIVE) continue
 
     // Default condition: current time > nextDueDate + (3 * EMI_PERIOD)
-    const defaultThreshold = nextDueDate + (DEFAULT_THRESHOLD_PERIODS * EMI_PERIOD_SECONDS)
+    const defaultThreshold = nextDueDate + (DEFAULT_THRESHOLD_PERIODS * emiPeriodSeconds)
+    runtime.log(`Checking loanId=${loan.loanId}: nextDueDate=${nextDueDate}, defaultThreshold=${defaultThreshold}, now=${now}`)
     if (now <= defaultThreshold) continue
 
     const loanId = loan.loanId
