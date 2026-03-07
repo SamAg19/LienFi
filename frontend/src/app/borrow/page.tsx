@@ -321,7 +321,7 @@ function StepMintNFT({ data, onComplete }: { data: { metadataHash?: string; toke
   )
 }
 
-function StepRequestLoan({ data, address, hasPendingRequest, approval, onApproved, refetch, updateWizardData }: { data: { tokenId?: number; requestHash?: string; submitTxHash?: string }; address: `0x${string}`; hasPendingRequest: boolean; approval: { exists: boolean; requestHash: `0x${string}` } | undefined; onApproved: (requestHash: string) => void; refetch: () => void; updateWizardData: (d: Record<string, unknown>) => void }) {
+function StepRequestLoan({ data, address, hasPendingRequest, approval, onApproved, refetch, updateWizardData }: { data: { tokenId?: number; requestHash?: string; submitTxHash?: string }; address: `0x${string}`; hasPendingRequest: boolean; approval: { exists: boolean; requestHash: `0x${string}`; approvedLimit: bigint; tenureMonths: bigint; computedEMI: bigint; expiresAt: bigint } | undefined; onApproved: (requestHash: string) => void; refetch: () => void; updateWizardData: (d: Record<string, unknown>) => void }) {
   const [amount, setAmount] = useState("")
   const [tenure, setTenure] = useState("12")
   const plaidToken = process.env.NEXT_PUBLIC_PLAID_ACCESS_TOKEN || ""
@@ -589,7 +589,7 @@ function StepRepay({ loan, loanId, refetchLoan }: { loan: { principal: bigint; r
   useEffect(() => {
     if (isSuccess) {
       toast.success("EMI payment successful!")
-      addNotification({ title: "EMI Paid", description: `${formatUSDC(loan.emiAmount)} USDC repaid successfully.`, hash: txHash })
+      addNotification({ title: "EMI Paid", description: `${formatUSDC(loan!.emiAmount)} USDC repaid successfully.`, hash: txHash })
       refetchLoan()
       balances.refetch()
     }
