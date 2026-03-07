@@ -72,6 +72,7 @@ export function useBlockscoutTx() {
       functionName: (variables.functionName as string) || "unknown",
       contractName: CONTRACT_NAMES[addr] || "Contract",
     }
+    // @ts-expect-error — wagmi's complex union types don't support spread + chainId injection
     return originalWriteContract({ ...variables, chainId: CHAIN_ID }, options)
   }
 
