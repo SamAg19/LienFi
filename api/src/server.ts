@@ -25,8 +25,11 @@ app.use(cors());
 app.use(express.json());
 
 // --- Health check (no auth) ---
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok", timestamp: Date.now() });
+app.get("/health", async (_req, res) => {
+  const { getDb } = await import("./lib/db");
+  const db = getDb();
+  const count = await db.collection("loanRequests").countDocuments();
+  res.json({ status: "ok", timestamp: Date.now(), db: db.databaseName, loanRequests: count });
 });
 
 // --- Protected routes (API key required) ---
