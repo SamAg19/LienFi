@@ -11,6 +11,7 @@ import loanRequestRouter from "./routes/loanRequest";
 import listingRouter from "./routes/listing";
 import listingHashRouter from "./routes/listingHash";
 import revealRouter from "./routes/reveal";
+import workflowLogsRouter from "./routes/workflowLogs";
 
 dotenv.config();
 
@@ -37,18 +38,22 @@ app.use("/listing-hash", authMiddleware, listingHashRouter);
 // --- Public routes (no auth — bidder-facing) ---
 app.use("/listing", listingRouter);
 app.use("/reveal", revealRouter);
+app.use("/workflow-logs", workflowLogsRouter);
 
 // --- Connect to MongoDB then start server ---
 (async () => {
-  const mongoUri = process.env.MONGODB_URI;
-  if (!mongoUri) {
-    console.error("MONGODB_URI environment variable is required");
-    process.exit(1);
-  }
+  try {
+    const mongoUri = process.env.MONGODB_URI;
+    if (!mongoUri) {
+      console.error("MONGODB_URI environment variable is required");
+      process.exit(1);
+    }
 
-  await connectDB(mongoUri);
+    console.log("Connecting to MongoDB...");
+    await connectDB(mongoUri);
+    console.log("MongoDB connected successfully");
 
-  app.listen(PORT, () => {
+    app.listen(PORT, () => {
     console.log(`\n LienFi API running on port ${PORT}`);
     console.log(`   POST /bid              — Submit a signed bid`);
     console.log(`   POST /settle           — Run Vickrey settlement`);
@@ -61,6 +66,10 @@ app.use("/reveal", revealRouter);
     console.log(`   POST /reveal/:id       — Reveal full details to winner`);
     console.log(`   GET  /health           — Health check\n`);
   });
+  } catch (err) {
+    console.error("Failed to start server:", err);
+    process.exit(1);
+  }
 })();
 
 export default app;
