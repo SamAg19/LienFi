@@ -27,7 +27,7 @@ export function useTokenBalances() {
         args: [address!, CONTRACTS.LendingPool.address],
       },
     ],
-    query: { enabled: !!address },
+    query: { enabled: !!address, refetchInterval: 8000 },
   })
 
   return {

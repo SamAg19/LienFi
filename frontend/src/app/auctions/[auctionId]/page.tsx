@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useParams } from "next/navigation"
+import Link from "next/link"
 import { useAccount, useReadContract, useSignTypedData, useSignMessage } from "wagmi"
 import { useBlockscoutTx } from "@/hooks/useBlockscoutTx"
 import { CONTRACTS, ZERO_BYTES32, CHAIN_ID } from "@/config/contracts"
@@ -12,7 +13,22 @@ import { submitBid, revealProperty } from "@/lib/api"
 import { GlassCard, GlassCardHeader, GlassCardContent } from "@/components/ui/glass-card"
 import { CountdownTimer } from "@/components/ui/countdown-timer"
 import { toast } from "sonner"
-import { Loader2 } from "lucide-react"
+import {
+  Loader2,
+  ArrowLeft,
+  Gavel,
+  Lock,
+  Eye,
+  EyeOff,
+  Shield,
+  DollarSign,
+  Users,
+  Timer,
+  Award,
+  ChevronRight,
+  Wallet,
+  FileText,
+} from "lucide-react"
 
 export default function AuctionDetailPage() {
   const { auctionId } = useParams<{ auctionId: string }>()
@@ -20,94 +36,405 @@ export default function AuctionDetailPage() {
   const bidStatus = useAuctionBidStatus(auctionId as `0x${string}`)
   const balances = useTokenBalances()
 
-  const { data: auctionData, isLoading, refetch: refetchAuction } = useReadContract({ address: CONTRACTS.LienFiAuction.address, abi: CONTRACTS.LienFiAuction.abi, functionName: "auctions", args: [auctionId as `0x${string}`], query: { enabled: !!auctionId } })
-  const { data: bidCount, refetch: refetchBidCount } = useReadContract({ address: CONTRACTS.LienFiAuction.address, abi: CONTRACTS.LienFiAuction.abi, functionName: "getBidCount", args: [auctionId as `0x${string}`], query: { enabled: !!auctionId } })
+  const { data: auctionData, isLoading, refetch: refetchAuction } = useReadContract({
+    address: CONTRACTS.LienFiAuction.address,
+    abi: CONTRACTS.LienFiAuction.abi,
+    functionName: "auctions",
+    args: [auctionId as `0x${string}`],
+    query: { enabled: !!auctionId, refetchInterval: 10000 },
+  })
+  const { data: bidCount, refetch: refetchBidCount } = useReadContract({
+    address: CONTRACTS.LienFiAuction.address,
+    abi: CONTRACTS.LienFiAuction.abi,
+    functionName: "getBidCount",
+    args: [auctionId as `0x${string}`],
+    query: { enabled: !!auctionId, refetchInterval: 10000 },
+  })
 
-  const auction = auctionData ? { seller: auctionData[0], tokenId: auctionData[1], deadline: auctionData[2], reservePrice: auctionData[3], settled: auctionData[4], winner: auctionData[5], settledPrice: auctionData[6], listingHash: auctionData[7] } : undefined
+  const auction = auctionData
+    ? {
+        seller: auctionData[0],
+        tokenId: auctionData[1],
+        deadline: auctionData[2],
+        reservePrice: auctionData[3],
+        settled: auctionData[4],
+        winner: auctionData[5],
+        settledPrice: auctionData[6],
+        listingHash: auctionData[7],
+      }
+    : undefined
+
+  // Notify user when auction settles
+  const settledNotified = useRef(false)
+  useEffect(() => {
+    if (!auction?.settled || settledNotified.current || !address) return
+    settledNotified.current = true
+    const won = auction.winner.toLowerCase() === address.toLowerCase()
+    if (won) {
+      toast.success(
+        `You won the auction! Settlement price: $${formatUSDC(auction.settledPrice)} USDC (Vickrey)`,
+        { duration: 10000 }
+      )
+    } else {
+      toast("Auction has been settled.", {
+        description: `Winner: ${auction.winner.slice(0, 6)}...${auction.winner.slice(-4)}`,
+        duration: 8000,
+      })
+    }
+  }, [auction?.settled, auction?.winner, auction?.settledPrice, address])
 
   if (isLoading) return (
-    <div className="h-64" style={{ background: '#E6E2D8', border: '2px solid #0D0D0D', borderRadius: '4px', boxShadow: '4px 4px 0px #0D0D0D' }} />
+    <div className="space-y-4">
+      <div className="h-12" style={{ background: '#E6E2D8', borderRadius: '4px', width: '200px' }} />
+      <div className="h-64" style={{ background: '#E6E2D8', border: '2px solid #0D0D0D', borderRadius: '4px', boxShadow: '4px 4px 0px #0D0D0D' }} />
+    </div>
   )
-  if (!auction) return <p style={{ fontFamily: "'DM Sans', sans-serif", color: '#3D3D3D' }}>Auction not found.</p>
+  if (!auction) return (
+    <div className="space-y-4">
+      <Link href="/auctions" className="flex items-center gap-1" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '13px', color: '#888880' }}>
+        <ArrowLeft className="w-4 h-4" /> Back to Auctions
+      </Link>
+      <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', color: '#3D3D3D' }}>Auction not found.</p>
+    </div>
+  )
 
   const isExpired = Number(auction.deadline) * 1000 < Date.now()
   const isWinner = address && auction.winner.toLowerCase() === address.toLowerCase()
+  const isSeller = address && auction.seller.toLowerCase() === address.toLowerCase()
 
   return (
     <div className="space-y-6">
-      <h1 className="display-title" style={{ marginTop: '16px' }}>Auction Detail</h1>
-      <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#888880', wordBreak: 'break-all' }}>{auctionId}</p>
+      {/* Breadcrumb + title */}
+      <div style={{ marginTop: '16px' }}>
+        <Link href="/auctions" className="flex items-center gap-1 mb-3" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '13px', color: '#888880' }}>
+          <ArrowLeft className="w-3.5 h-3.5" /> Back to Auctions
+        </Link>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="display-title">Auction Detail</h1>
+          <span className={`nb-tag ${auction.settled ? 'settled' : isExpired ? 'sealed' : 'live'}`} style={{ fontSize: '11px' }}>
+            {auction.settled ? "Settled" : isExpired ? "Awaiting Settlement" : "Live"}
+          </span>
+        </div>
+        <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#888880', marginTop: '4px', wordBreak: 'break-all' }}>
+          {auctionId}
+        </p>
+      </div>
 
-      <GlassCard hover={false}>
+      {/* Main info card */}
+      <GlassCard hover={false} accent={auction.settled ? "mint" : undefined}>
         <GlassCardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <StatBlock label="Reserve Price" value={`$${formatUSDC(auction.reservePrice)}`} sub="USDC minimum" />
+            <StatBlock
+              label="Sealed Bids"
+              value={bidCount?.toString() ?? "0"}
+              sub={Number(bidCount ?? 0) === 0 ? 'none yet' : 'bids received'}
+            />
+            <StatBlock label="Property" value={`#${auction.tokenId.toString()}`} sub="Token ID" />
             <div>
-              <p className="stat-label" style={{ marginBottom: '8px' }}>Status</p>
-              <span className={`nb-tag ${auction.settled ? 'settled' : isExpired ? 'sealed' : 'live'}`}>
-                {auction.settled ? "Settled" : isExpired ? "Awaiting Settlement" : "Live"}
-              </span>
-            </div>
-            <div>
-              <p className="stat-label" style={{ marginBottom: '8px' }}>Token ID</p>
-              <p className="stat-number" style={{ fontSize: '24px' }}>#{auction.tokenId.toString()}</p>
-            </div>
-            <div>
-              <p className="stat-label" style={{ marginBottom: '8px' }}>Reserve Price</p>
-              <p className="stat-number" style={{ fontSize: '24px' }}>{formatUSDC(auction.reservePrice)} <span className="stat-label">USDC</span></p>
-            </div>
-            <div>
-              <p className="stat-label" style={{ marginBottom: '8px' }}>Sealed Bids</p>
-              <p className="stat-number" style={{ fontSize: '24px' }}>{bidCount?.toString() ?? "0"}</p>
+              <p className="stat-label" style={{ marginBottom: '6px' }}>
+                {auction.settled ? 'Settled Price' : isExpired ? 'Status' : 'Time Left'}
+              </p>
+              {auction.settled ? (
+                <>
+                  <p className="stat-number" style={{ fontSize: '24px', color: '#2E7D32' }}>
+                    ${formatUSDC(auction.settledPrice)}
+                  </p>
+                  <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', color: '#888880', marginTop: '2px' }}>Vickrey price</p>
+                </>
+              ) : !isExpired ? (
+                <CountdownTimer deadline={Number(auction.deadline)} compact className="text-sm" />
+              ) : (
+                <>
+                  <p style={{ fontFamily: "'Fraunces', serif", fontWeight: 900, fontSize: '18px', color: '#FF8A80' }}>Expired</p>
+                  <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', color: '#888880', marginTop: '2px' }}>awaiting CRE</p>
+                </>
+              )}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-6 pt-6" style={{ borderTop: '2px solid #0D0D0D' }}>
+          {/* Addresses row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6 pt-5" style={{ borderTop: '2px solid #0D0D0D' }}>
             <div>
-              <p className="stat-label" style={{ marginBottom: '8px' }}>Seller</p>
+              <p className="stat-label" style={{ marginBottom: '6px' }}>Seller (Defaulted Borrower)</p>
               <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#3D3D3D', wordBreak: 'break-all' }}>
-                {auction.seller.slice(0, 10)}...{auction.seller.slice(-8)}
+                {auction.seller}
+              </p>
+              {isSeller && (
+                <span className="nb-tag" style={{ background: '#FFD97D', fontSize: '10px', marginTop: '6px', display: 'inline-block' }}>You</span>
+              )}
+            </div>
+            <div>
+              <p className="stat-label" style={{ marginBottom: '6px' }}>Deadline</p>
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', color: '#3D3D3D' }}>
+                {new Date(Number(auction.deadline) * 1000).toLocaleString()}
               </p>
             </div>
             <div>
-              <p className="stat-label" style={{ marginBottom: '8px' }}>Deadline</p>
-              {!auction.settled && !isExpired ? (
-                <CountdownTimer deadline={Number(auction.deadline)} compact className="text-sm" />
-              ) : (
-                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', color: '#3D3D3D' }}>
-                  {new Date(Number(auction.deadline) * 1000).toLocaleString()}
-                </p>
-              )}
+              <p className="stat-label" style={{ marginBottom: '6px' }}>Listing Hash</p>
+              <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#3D3D3D', wordBreak: 'break-all' }}>
+                {auction.listingHash.slice(0, 18)}...{auction.listingHash.slice(-8)}
+              </p>
             </div>
-            {auction.settled && (
-              <>
-                <div>
-                  <p className="stat-label" style={{ marginBottom: '8px' }}>Winner</p>
-                  <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#0D0D0D', fontWeight: 700, wordBreak: 'break-all' }}>
-                    {auction.winner.slice(0, 10)}...{auction.winner.slice(-8)}
-                  </p>
-                </div>
-                <div>
-                  <p className="stat-label" style={{ marginBottom: '8px' }}>Settled Price</p>
-                  <p className="stat-number" style={{ fontSize: '24px', color: '#0D0D0D' }}>
-                    {formatUSDC(auction.settledPrice)} <span className="stat-label">USDC</span>
-                  </p>
-                </div>
-              </>
-            )}
           </div>
+
+          {/* Settlement results */}
+          {auction.settled && (
+            <div className="mt-6 pt-5" style={{ borderTop: '2px solid #0D0D0D' }}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div
+                  className="px-4 py-4 flex items-center gap-3"
+                  style={{ background: '#A8F0D8', border: '2px solid #0D0D0D', borderRadius: '4px', boxShadow: '2px 2px 0px #0D0D0D' }}
+                >
+                  <Award className="w-5 h-5" style={{ color: '#0D0D0D' }} />
+                  <div>
+                    <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: 700, color: '#0D0D0D' }}>Winner</p>
+                    <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#0D0D0D', wordBreak: 'break-all' }}>
+                      {auction.winner}
+                    </p>
+                    {isWinner && (
+                      <span className="nb-tag" style={{ background: '#C8F135', fontSize: '10px', marginTop: '4px', display: 'inline-block' }}>That's you!</span>
+                    )}
+                  </div>
+                </div>
+                <div
+                  className="px-4 py-4 flex items-center gap-3"
+                  style={{ background: '#FFD97D', border: '2px solid #0D0D0D', borderRadius: '4px', boxShadow: '2px 2px 0px #0D0D0D' }}
+                >
+                  <DollarSign className="w-5 h-5" style={{ color: '#0D0D0D' }} />
+                  <div>
+                    <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: 700, color: '#0D0D0D' }}>Settlement</p>
+                    <p style={{ fontFamily: "'Fraunces', serif", fontWeight: 900, fontSize: '20px', color: '#0D0D0D' }}>
+                      ${formatUSDC(auction.settledPrice)} USDC
+                    </p>
+                    <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', color: '#3D3D3D', marginTop: '2px' }}>
+                      Second-highest price (Vickrey)
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </GlassCardContent>
       </GlassCard>
 
+      {/* Countdown card (live only) */}
+      {!auction.settled && !isExpired && (
+        <GlassCard hover={false}>
+          <GlassCardContent>
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 flex items-center justify-center"
+                  style={{ background: '#FFD97D', border: '2px solid #0D0D0D', borderRadius: '4px', boxShadow: '2px 2px 0px #0D0D0D' }}
+                >
+                  <Timer className="w-5 h-5" style={{ color: '#0D0D0D' }} />
+                </div>
+                <div>
+                  <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: 700, color: '#0D0D0D' }}>Bidding Closes In</p>
+                  <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', color: '#888880' }}>
+                    Place your sealed bid before the deadline
+                  </p>
+                </div>
+              </div>
+              <CountdownTimer deadline={Number(auction.deadline)} />
+            </div>
+          </GlassCardContent>
+        </GlassCard>
+      )}
+
+      {/* Action panels */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {!auction.settled && !isExpired && <DepositToPoolPanel auctionId={auctionId} deadline={Number(auction.deadline)} bidStatus={bidStatus} balances={balances} address={address} />}
-        {!auction.settled && !isExpired && <BidPanel auctionId={auctionId} deadline={Number(auction.deadline)} canBid={bidStatus.canBid} address={address} onBidSubmitted={() => refetchBidCount()} />}
+        {!auction.settled && !isExpired && (
+          <DepositToPoolPanel
+            auctionId={auctionId}
+            deadline={Number(auction.deadline)}
+            bidStatus={bidStatus}
+            balances={balances}
+            address={address}
+          />
+        )}
+        {!auction.settled && !isExpired && (
+          <BidPanel
+            auctionId={auctionId}
+            deadline={Number(auction.deadline)}
+            canBid={bidStatus.canBid}
+            address={address}
+            onBidSubmitted={() => refetchBidCount()}
+          />
+        )}
         {auction.settled && isWinner && <RevealPanel auctionId={auctionId} />}
+      </div>
+
+      {/* Your bid status (if connected) */}
+      {address && !auction.settled && (
+        <GlassCard hover={false}>
+          <GlassCardHeader>
+            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: 700, color: '#0D0D0D' }}>Your Status</h2>
+            <Wallet className="w-4 h-4" style={{ color: '#0D0D0D' }} />
+          </GlassCardHeader>
+          <GlassCardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <StatusItem
+                label="Pool Deposit"
+                value={bidStatus.poolBalance !== undefined && bidStatus.poolBalance > 0n ? `${formatUSDC(bidStatus.poolBalance)} USDC` : 'None'}
+                ok={bidStatus.poolBalance !== undefined && bidStatus.poolBalance > 0n}
+              />
+              <StatusItem
+                label="Bid Eligibility"
+                value={bidStatus.canBid ? 'Eligible' : 'Not eligible'}
+                ok={bidStatus.canBid === true}
+              />
+              <StatusItem
+                label="Lock Expiry"
+                value={bidStatus.lockExpiry && bidStatus.lockExpiry > 0n ? new Date(Number(bidStatus.lockExpiry) * 1000).toLocaleDateString() : 'N/A'}
+                ok={bidStatus.lockExpiry !== undefined && bidStatus.lockExpiry > 0n}
+              />
+            </div>
+          </GlassCardContent>
+        </GlassCard>
+      )}
+
+      {/* Auction phase tracker */}
+      <GlassCard hover={false}>
+        <GlassCardHeader>
+          <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: 700, color: '#0D0D0D' }}>Auction Lifecycle</h2>
+          <FileText className="w-4 h-4" style={{ color: '#0D0D0D' }} />
+        </GlassCardHeader>
+        <GlassCardContent>
+          <div className="space-y-0">
+            <LifecycleStep
+              num="1"
+              title="Auction Created"
+              description="CRE detected a defaulted loan and created a sealed-bid auction on-chain."
+              done
+              accent="#C8F135"
+            />
+            <LifecycleConnector done={!isExpired || auction.settled} />
+            <LifecycleStep
+              num="2"
+              title="Sealed Bidding Phase"
+              description="Bidders deposit USDC (World ID verified) then submit EIP-712 signed bids. Amounts are hidden."
+              done={isExpired || auction.settled}
+              active={!isExpired && !auction.settled}
+              accent="#C4B5FF"
+            />
+            <LifecycleConnector done={auction.settled} />
+            <LifecycleStep
+              num="3"
+              title="Deadline & Reveal"
+              description="After deadline, CRE settlement workflow reveals bids inside the enclave and verifies signatures."
+              done={auction.settled}
+              active={isExpired && !auction.settled}
+              accent="#FFD97D"
+            />
+            <LifecycleConnector done={auction.settled} />
+            <LifecycleStep
+              num="4"
+              title="Vickrey Settlement"
+              description="Highest bidder wins at the second-highest price. Winner gets property NFT, seller gets USDC."
+              done={auction.settled}
+              accent="#A8F0D8"
+            />
+          </div>
+        </GlassCardContent>
+      </GlassCard>
+    </div>
+  )
+}
+
+/* --- Stat block helper --- */
+
+function StatBlock({ label, value, sub }: { label: string; value: string; sub: string }) {
+  return (
+    <div>
+      <p className="stat-label" style={{ marginBottom: '6px' }}>{label}</p>
+      <p className="stat-number" style={{ fontSize: '24px' }}>{value}</p>
+      <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', color: '#888880', marginTop: '2px' }}>{sub}</p>
+    </div>
+  )
+}
+
+/* --- Status item --- */
+
+function StatusItem({ label, value, ok }: { label: string; value: string; ok?: boolean }) {
+  return (
+    <div
+      className="px-4 py-3 flex items-center gap-3"
+      style={{
+        background: ok ? 'rgba(168,240,216,0.3)' : 'rgba(230,226,216,0.5)',
+        border: `1.5px solid ${ok ? '#2E7D32' : '#D4D0C8'}`,
+        borderRadius: '4px',
+      }}
+    >
+      <div
+        className="w-6 h-6 flex items-center justify-center shrink-0"
+        style={{
+          border: '2px solid #0D0D0D',
+          borderRadius: '50%',
+          background: ok ? '#A8F0D8' : '#E6E2D8',
+          fontSize: '10px',
+          fontWeight: 900,
+        }}
+      >
+        {ok ? '✓' : '—'}
+      </div>
+      <div>
+        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', color: '#888880' }}>{label}</p>
+        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: 600, color: '#0D0D0D' }}>{value}</p>
       </div>
     </div>
   )
 }
 
-function DepositToPoolPanel({ auctionId, deadline, bidStatus, balances, address }: { auctionId: string; deadline: number; bidStatus: ReturnType<typeof useAuctionBidStatus>; balances: ReturnType<typeof useTokenBalances>; address: `0x${string}` | undefined }) {
+/* --- Lifecycle step --- */
+
+function LifecycleStep({ num, title, description, done, active, accent }: { num: string; title: string; description: string; done: boolean; active?: boolean; accent: string }) {
+  return (
+    <div className="flex items-start gap-3">
+      <div
+        className="w-8 h-8 flex items-center justify-center shrink-0"
+        style={{
+          background: done ? '#C8F135' : active ? accent : '#E6E2D8',
+          border: '2px solid #0D0D0D',
+          borderRadius: '50%',
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: '12px',
+          fontWeight: 900,
+          boxShadow: active ? '2px 2px 0px #0D0D0D' : undefined,
+        }}
+      >
+        {done ? '✓' : num}
+      </div>
+      <div className="pt-1">
+        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '13px', fontWeight: 700, color: done || active ? '#0D0D0D' : '#888880' }}>{title}</p>
+        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', color: '#3D3D3D', lineHeight: 1.5, marginTop: '2px' }}>{description}</p>
+      </div>
+    </div>
+  )
+}
+
+function LifecycleConnector({ done }: { done: boolean }) {
+  return (
+    <div className="ml-[15px] h-6" style={{ width: '2px', background: done ? '#C8F135' : '#E6E2D8' }} />
+  )
+}
+
+/* --- Deposit Panel --- */
+
+function DepositToPoolPanel({
+  auctionId,
+  deadline,
+  bidStatus,
+  balances,
+  address,
+}: {
+  auctionId: string
+  deadline: number
+  bidStatus: ReturnType<typeof useAuctionBidStatus>
+  balances: ReturnType<typeof useTokenBalances>
+  address: `0x${string}` | undefined
+}) {
   const [amount, setAmount] = useState("")
   const [step, setStep] = useState<"idle" | "approving" | "depositing">("idle")
   const { writeContract, isPending } = useBlockscoutTx()
@@ -116,18 +443,54 @@ function DepositToPoolPanel({ auctionId, deadline, bidStatus, balances, address 
     if (!address || !amount) return
     const parsedAmount = parseUSDC(amount)
     const lockUntil = BigInt(deadline + 86400)
-    const root = 1n; const nullifierHash = BigInt(Date.now())
+    const root = 1n
+    const nullifierHash = BigInt(Date.now())
     const proof: readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint] = [0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n]
     const allowance = balances.usdcAllowanceLendingPool ?? 0n
+
     if (allowance < parsedAmount) {
       setStep("approving")
-      writeContract({ address: CONTRACTS.MockUSDC.address, abi: CONTRACTS.MockUSDC.abi, functionName: "approve", args: [CONTRACTS.LienFiAuction.address, parsedAmount] }, {
-        onSuccess: () => { toast.success("USDC approved, depositing..."); setStep("depositing"); writeContract({ address: CONTRACTS.LienFiAuction.address, abi: CONTRACTS.LienFiAuction.abi, functionName: "depositToPool", args: [CONTRACTS.MockUSDC.address, lockUntil, parsedAmount, root, nullifierHash, proof] }, { onSuccess: () => { toast.success("Deposit successful!"); setAmount(""); setStep("idle"); balances.refetch() }, onError: (e) => { toast.error(`Deposit failed: ${e.message.slice(0, 80)}`); setStep("idle") } }) },
-        onError: (e) => { toast.error(`Approval failed: ${e.message.slice(0, 80)}`); setStep("idle") },
-      })
+      writeContract(
+        {
+          address: CONTRACTS.MockUSDC.address,
+          abi: CONTRACTS.MockUSDC.abi,
+          functionName: "approve",
+          args: [CONTRACTS.LienFiAuction.address, parsedAmount],
+        },
+        {
+          onSuccess: () => {
+            toast.success("USDC approved, depositing...")
+            setStep("depositing")
+            writeContract(
+              {
+                address: CONTRACTS.LienFiAuction.address,
+                abi: CONTRACTS.LienFiAuction.abi,
+                functionName: "depositToPool",
+                args: [CONTRACTS.MockUSDC.address, lockUntil, parsedAmount, root, nullifierHash, proof],
+              },
+              {
+                onSuccess: () => { toast.success("Deposit successful!"); setAmount(""); setStep("idle"); balances.refetch(); bidStatus.refetch() },
+                onError: (e) => { toast.error(`Deposit failed: ${e.message.slice(0, 80)}`); setStep("idle") },
+              }
+            )
+          },
+          onError: (e) => { toast.error(`Approval failed: ${e.message.slice(0, 80)}`); setStep("idle") },
+        }
+      )
     } else {
       setStep("depositing")
-      writeContract({ address: CONTRACTS.LienFiAuction.address, abi: CONTRACTS.LienFiAuction.abi, functionName: "depositToPool", args: [CONTRACTS.MockUSDC.address, lockUntil, parsedAmount, root, nullifierHash, proof] }, { onSuccess: () => { toast.success("Deposit successful!"); setAmount(""); setStep("idle"); balances.refetch() }, onError: (e) => { toast.error(`Deposit failed: ${e.message.slice(0, 80)}`); setStep("idle") } })
+      writeContract(
+        {
+          address: CONTRACTS.LienFiAuction.address,
+          abi: CONTRACTS.LienFiAuction.abi,
+          functionName: "depositToPool",
+          args: [CONTRACTS.MockUSDC.address, lockUntil, parsedAmount, root, nullifierHash, proof],
+        },
+        {
+          onSuccess: () => { toast.success("Deposit successful!"); setAmount(""); setStep("idle"); balances.refetch(); bidStatus.refetch() },
+          onError: (e) => { toast.error(`Deposit failed: ${e.message.slice(0, 80)}`); setStep("idle") },
+        }
+      )
     }
   }
 
@@ -136,26 +499,80 @@ function DepositToPoolPanel({ auctionId, deadline, bidStatus, balances, address 
   return (
     <GlassCard hover={false}>
       <GlassCardHeader>
-        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: 700, color: '#0D0D0D' }}>1. Deposit to Auction Pool</h2>
+        <div className="flex items-center gap-2">
+          <div
+            className="w-6 h-6 flex items-center justify-center"
+            style={{ border: '2px solid #0D0D0D', borderRadius: '4px', background: '#A8D8FF' }}
+          >
+            <DollarSign className="w-3.5 h-3.5" style={{ color: '#0D0D0D' }} />
+          </div>
+          <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: 700, color: '#0D0D0D' }}>
+            Step 1 — Deposit to Pool
+          </h2>
+        </div>
       </GlassCardHeader>
       <GlassCardContent>
-        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', color: '#3D3D3D', marginBottom: '16px' }}>
-          Deposit USDC with World ID verification to become eligible to bid. Funds locked until settlement.
+        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', color: '#3D3D3D', marginBottom: '16px', lineHeight: 1.6 }}>
+          Deposit USDC with World ID verification to become eligible to bid. Funds are locked until auction settlement.
         </p>
+
         {bidStatus.poolBalance !== undefined && bidStatus.poolBalance > 0n && (
-          <div className="mb-4 p-3" style={{ background: '#A8F0D8', border: '2px solid #0D0D0D', borderRadius: '4px', boxShadow: '2px 2px 0px #0D0D0D' }}>
-            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', color: '#0D0D0D', fontWeight: 600 }}>
-              Pool balance: {formatUSDC(bidStatus.poolBalance)} USDC
-            </p>
+          <div
+            className="mb-4 px-4 py-3 flex items-center gap-2"
+            style={{ background: '#A8F0D8', border: '2px solid #0D0D0D', borderRadius: '4px', boxShadow: '2px 2px 0px #0D0D0D' }}
+          >
+            <Shield className="w-4 h-4" style={{ color: '#0D0D0D' }} />
+            <div>
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: 700, color: '#0D0D0D' }}>
+                Pool Balance: {formatUSDC(bidStatus.poolBalance)} USDC
+              </p>
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', color: '#3D3D3D' }}>
+                You are eligible to place a sealed bid
+              </p>
+            </div>
           </div>
         )}
+
         <div className="space-y-3">
-          <div className="relative">
-            <input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="nb-input" style={{ paddingRight: '60px', height: '44px' }} />
-            <button onClick={() => { if (balances.usdcBalance) setAmount((Number(balances.usdcBalance) / 1e6).toString()) }} className="absolute right-3 top-1/2 -translate-y-1/2 nb-tag" style={{ background: '#C8F135', cursor: 'pointer' }}>MAX</button>
+          <div>
+            <label className="stat-label" style={{ marginBottom: '8px', display: 'block' }}>Deposit Amount (USDC)</label>
+            <div className="relative">
+              <input
+                type="number"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="nb-input"
+                style={{ paddingRight: '60px', height: '44px' }}
+              />
+              <button
+                onClick={() => { if (balances.usdcBalance) setAmount((Number(balances.usdcBalance) / 1e6).toString()) }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 nb-tag"
+                style={{ background: '#C8F135', cursor: 'pointer' }}
+              >
+                MAX
+              </button>
+            </div>
           </div>
-          <button onClick={handleDeposit} disabled={!address || !amount || busy} className="nb-btn lime w-full" style={{ height: '44px' }}>
-            {busy ? step === "approving" ? "Approving..." : "Depositing..." : "Deposit to Pool"}
+
+          {balances.usdcBalance !== undefined && (
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', color: '#888880' }}>
+              Wallet: {formatUSDC(balances.usdcBalance)} USDC available
+            </p>
+          )}
+
+          <button
+            onClick={handleDeposit}
+            disabled={!address || !amount || busy}
+            className="nb-btn lime w-full"
+            style={{ height: '44px' }}
+          >
+            {busy
+              ? step === "approving"
+                ? "Approving USDC (1/2)..."
+                : "Depositing to Pool (2/2)..."
+              : "Deposit to Auction Pool"
+            }
           </button>
         </div>
       </GlassCardContent>
@@ -163,9 +580,24 @@ function DepositToPoolPanel({ auctionId, deadline, bidStatus, balances, address 
   )
 }
 
-function BidPanel({ auctionId, deadline, canBid, address, onBidSubmitted }: { auctionId: string; deadline: number; canBid?: boolean; address: `0x${string}` | undefined; onBidSubmitted: () => void }) {
+/* --- Bid Panel --- */
+
+function BidPanel({
+  auctionId,
+  deadline,
+  canBid,
+  address,
+  onBidSubmitted,
+}: {
+  auctionId: string
+  deadline: number
+  canBid?: boolean
+  address: `0x${string}` | undefined
+  onBidSubmitted: () => void
+}) {
   const [amount, setAmount] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const [bidHash, setBidHash] = useState<string | null>(null)
   const { signTypedDataAsync } = useSignTypedData()
 
   const handleBid = async () => {
@@ -174,41 +606,158 @@ function BidPanel({ auctionId, deadline, canBid, address, onBidSubmitted }: { au
     try {
       const parsedAmount = parseUSDC(amount)
       const nonce = Math.floor(Math.random() * 1e9)
-      const signature = await signTypedDataAsync({ domain: { name: "LienFi", version: "1", chainId: BigInt(CHAIN_ID), verifyingContract: CONTRACTS.LienFiAuction.address }, types: { Bid: [{ name: "auctionId", type: "bytes32" }, { name: "bidder", type: "address" }, { name: "amount", type: "uint256" }, { name: "nonce", type: "uint256" }] }, primaryType: "Bid", message: { auctionId: auctionId as `0x${string}`, bidder: address, amount: parsedAmount, nonce: BigInt(nonce) } })
-      const res = await submitBid({ auctionId, bidder: address, amount: parsedAmount.toString(), nonce, signature, auctionDeadline: deadline })
-      if (res.error) { toast.error(`Bid failed: ${res.error}`) } else { toast.success("Sealed bid submitted!"); setAmount(""); onBidSubmitted() }
-    } catch (e: any) { toast.error(`Bid error: ${e.message?.slice(0, 80) || "Unknown error"}`) } finally { setSubmitting(false) }
+      const signature = await signTypedDataAsync({
+        domain: {
+          name: "LienFi",
+          version: "1",
+          chainId: BigInt(CHAIN_ID),
+          verifyingContract: CONTRACTS.LienFiAuction.address,
+        },
+        types: {
+          Bid: [
+            { name: "auctionId", type: "bytes32" },
+            { name: "bidder", type: "address" },
+            { name: "amount", type: "uint256" },
+            { name: "nonce", type: "uint256" },
+          ],
+        },
+        primaryType: "Bid",
+        message: {
+          auctionId: auctionId as `0x${string}`,
+          bidder: address,
+          amount: parsedAmount,
+          nonce: BigInt(nonce),
+        },
+      })
+      const res = await submitBid({
+        auctionId,
+        bidder: address,
+        amount: parsedAmount.toString(),
+        nonce,
+        signature,
+        auctionDeadline: deadline,
+      })
+      if (res.error) {
+        toast.error(`Bid failed: ${res.error}`)
+      } else {
+        toast.success("Sealed bid submitted!")
+        setBidHash(res.bidHash || res.hash || signature.slice(0, 18))
+        setAmount("")
+        onBidSubmitted()
+      }
+    } catch (e: any) {
+      toast.error(`Bid error: ${e.message?.slice(0, 80) || "Unknown error"}`)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
     <GlassCard accent="lavender" hover={false}>
       <GlassCardHeader>
-        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: 700, color: '#0D0D0D' }}>2. Submit Sealed Bid</h2>
+        <div className="flex items-center gap-2">
+          <div
+            className="w-6 h-6 flex items-center justify-center"
+            style={{ border: '2px solid #0D0D0D', borderRadius: '4px', background: '#C4B5FF' }}
+          >
+            <Lock className="w-3.5 h-3.5" style={{ color: '#0D0D0D' }} />
+          </div>
+          <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: 700, color: '#0D0D0D' }}>
+            Step 2 — Place Sealed Bid
+          </h2>
+        </div>
       </GlassCardHeader>
       <GlassCardContent>
-        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', color: '#3D3D3D', marginBottom: '16px' }}>
-          Sign with EIP-712 — amount stays off-chain. Only a hash is stored until CRE reveals the winner.
+        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', color: '#3D3D3D', marginBottom: '16px', lineHeight: 1.6 }}>
+          Sign an EIP-712 typed message with your bid amount. The amount stays off-chain in the CRE enclave — only the bid count is public.
         </p>
+
         {canBid === false && (
-          <div className="mb-4 p-3" style={{ background: '#FF8A80', border: '2px solid #0D0D0D', borderRadius: '4px', boxShadow: '2px 2px 0px #0D0D0D' }}>
-            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', color: '#0D0D0D', fontWeight: 600 }}>
-              Deposit to auction pool first.
+          <div
+            className="mb-4 px-4 py-3 flex items-center gap-2"
+            style={{ background: '#FFB4A0', border: '2px solid #0D0D0D', borderRadius: '4px', boxShadow: '2px 2px 0px #0D0D0D' }}
+          >
+            <EyeOff className="w-4 h-4" style={{ color: '#0D0D0D' }} />
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: 600, color: '#0D0D0D' }}>
+              You must deposit to the auction pool first (Step 1)
             </p>
           </div>
         )}
+
+        {canBid === true && !bidHash && (
+          <div
+            className="mb-4 px-4 py-3 flex items-center gap-2"
+            style={{ background: '#A8F0D8', border: '2px solid #0D0D0D', borderRadius: '4px', boxShadow: '2px 2px 0px #0D0D0D' }}
+          >
+            <Shield className="w-4 h-4" style={{ color: '#0D0D0D' }} />
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: 600, color: '#0D0D0D' }}>
+              You are eligible to bid
+            </p>
+          </div>
+        )}
+
+        {bidHash && (
+          <div
+            className="mb-4 px-4 py-3"
+            style={{ background: '#A8F0D8', border: '2px solid #0D0D0D', borderRadius: '4px', boxShadow: '2px 2px 0px #0D0D0D' }}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <Shield className="w-4 h-4" style={{ color: '#0D0D0D' }} />
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: 700, color: '#0D0D0D' }}>
+                Sealed bid submitted successfully
+              </p>
+            </div>
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', color: '#3D3D3D', marginBottom: '4px' }}>Bid Hash:</p>
+            <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#0D0D0D', wordBreak: 'break-all', background: 'rgba(255,255,255,0.5)', padding: '6px 8px', borderRadius: '3px' }}>
+              {bidHash}
+            </p>
+          </div>
+        )}
+
         <div className="space-y-3">
           <div>
             <label className="stat-label" style={{ marginBottom: '8px', display: 'block' }}>Bid Amount (USDC)</label>
-            <input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="nb-input" style={{ height: '44px' }} />
+            <input
+              type="number"
+              placeholder="0.00"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="nb-input"
+              style={{ height: '44px' }}
+            />
           </div>
-          <button onClick={handleBid} disabled={!address || !amount || submitting || canBid === false} className="nb-btn w-full" style={{ height: '44px' }}>
-            {submitting ? "Signing & Submitting..." : "Place Sealed Bid"}
+
+          <div
+            className="px-3 py-2 flex items-center gap-2"
+            style={{ background: 'rgba(196,181,255,0.3)', border: '1.5px solid #C4B5FF', borderRadius: '4px' }}
+          >
+            <EyeOff className="w-3.5 h-3.5" style={{ color: '#0D0D0D' }} />
+            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', color: '#3D3D3D' }}>
+              Your bid amount is private — sealed in CRE enclave
+            </span>
+          </div>
+
+          <button
+            onClick={handleBid}
+            disabled={!address || !amount || submitting || canBid === false}
+            className="nb-btn w-full"
+            style={{ height: '44px' }}
+          >
+            {submitting ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" /> Signing & Submitting...
+              </span>
+            ) : (
+              "Place Sealed Bid"
+            )}
           </button>
         </div>
       </GlassCardContent>
     </GlassCard>
   )
 }
+
+/* --- Reveal Panel --- */
 
 function RevealPanel({ auctionId }: { auctionId: string }) {
   const [revealing, setRevealing] = useState(false)
@@ -221,28 +770,68 @@ function RevealPanel({ auctionId }: { auctionId: string }) {
       const message = `Reveal property details for auction: ${auctionId}`
       const signature = await signMessageAsync({ message })
       const res = await revealProperty(auctionId, signature)
-      if (res.error) { toast.error(`Reveal failed: ${res.error}`) } else { setPropertyData(res); toast.success("Property details revealed!") }
-    } catch (e: any) { toast.error(`Reveal error: ${e.message?.slice(0, 80) || "Unknown error"}`) } finally { setRevealing(false) }
+      if (res.error) {
+        toast.error(`Reveal failed: ${res.error}`)
+      } else {
+        setPropertyData(res)
+        toast.success("Property details revealed!")
+      }
+    } catch (e: any) {
+      toast.error(`Reveal error: ${e.message?.slice(0, 80) || "Unknown error"}`)
+    } finally {
+      setRevealing(false)
+    }
   }
 
   return (
     <GlassCard className="lg:col-span-2" accent="gold" hover={false}>
       <GlassCardHeader>
-        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: 700, color: '#0D0D0D' }}>Winner — Reveal Property</h2>
+        <div className="flex items-center gap-2">
+          <div
+            className="w-6 h-6 flex items-center justify-center"
+            style={{ border: '2px solid #0D0D0D', borderRadius: '4px', background: '#FFD97D' }}
+          >
+            <Award className="w-3.5 h-3.5" style={{ color: '#0D0D0D' }} />
+          </div>
+          <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: 700, color: '#0D0D0D' }}>
+            Winner — Reveal Property Details
+          </h2>
+        </div>
       </GlassCardHeader>
       <GlassCardContent>
         {!propertyData ? (
-          <div className="text-center py-6">
-            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', color: '#3D3D3D', marginBottom: '16px' }}>
-              Congratulations! Sign to reveal the full property details.
+          <div className="text-center py-8">
+            <div
+              className="w-16 h-16 flex items-center justify-center mx-auto mb-4"
+              style={{ background: '#A8F0D8', border: '2px solid #0D0D0D', borderRadius: '50%', boxShadow: '4px 4px 0px #0D0D0D' }}
+            >
+              <Award className="w-7 h-7" style={{ color: '#0D0D0D' }} />
+            </div>
+            <p style={{ fontFamily: "'Fraunces', serif", fontWeight: 900, fontSize: '20px', color: '#0D0D0D', marginBottom: '8px' }}>
+              Congratulations!
             </p>
-            <button onClick={handleReveal} disabled={revealing} className="nb-btn lime" style={{ padding: '12px 32px', height: '44px' }}>
-              {revealing ? <><Loader2 className="w-4 h-4 animate-spin" /> Signing...</> : "Reveal Property Details"}
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '13px', color: '#3D3D3D', marginBottom: '20px', maxWidth: '400px', margin: '0 auto 20px' }}>
+              You won this auction. Sign with your wallet to reveal the full property details — address, title, and deed information.
+            </p>
+            <button onClick={handleReveal} disabled={revealing} className="nb-btn lime" style={{ padding: '12px 32px', height: '48px', fontSize: '14px' }}>
+              {revealing ? (
+                <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Signing...</span>
+              ) : (
+                <span className="flex items-center gap-2"><Eye className="w-4 h-4" /> Reveal Property Details</span>
+              )}
             </button>
           </div>
         ) : (
-          <div className="space-y-3">
-            <p className="nb-tag settled" style={{ marginBottom: '8px' }}>Property details decrypted</p>
+          <div className="space-y-4">
+            <div
+              className="flex items-center gap-2 px-3 py-2"
+              style={{ background: '#A8F0D8', border: '2px solid #0D0D0D', borderRadius: '4px', boxShadow: '2px 2px 0px #0D0D0D' }}
+            >
+              <Eye className="w-4 h-4" style={{ color: '#0D0D0D' }} />
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: 700, color: '#0D0D0D' }}>
+                Property details decrypted successfully
+              </p>
+            </div>
             <pre
               className="p-4 overflow-x-auto whitespace-pre-wrap"
               style={{

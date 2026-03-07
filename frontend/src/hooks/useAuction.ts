@@ -50,33 +50,40 @@ export function useActiveAuction() {
 export function useAuctionBidStatus(auctionId?: `0x${string}`) {
   const { address } = useAccount()
 
-  const { data: canBid } = useReadContract({
+  const { data: canBid, refetch: refetchCanBid } = useReadContract({
     address: CONTRACTS.LienFiAuction.address,
     abi: CONTRACTS.LienFiAuction.abi,
     functionName: "canBid",
     args: [address!, auctionId!],
-    query: { enabled: !!address && !!auctionId },
+    query: { enabled: !!address && !!auctionId, refetchInterval: 8000 },
   })
 
-  const { data: poolBalance } = useReadContract({
+  const { data: poolBalance, refetch: refetchPoolBalance } = useReadContract({
     address: CONTRACTS.LienFiAuction.address,
     abi: CONTRACTS.LienFiAuction.abi,
     functionName: "poolBalance",
     args: [address!, CONTRACTS.MockUSDC.address],
-    query: { enabled: !!address },
+    query: { enabled: !!address, refetchInterval: 8000 },
   })
 
-  const { data: lockExpiry } = useReadContract({
+  const { data: lockExpiry, refetch: refetchLockExpiry } = useReadContract({
     address: CONTRACTS.LienFiAuction.address,
     abi: CONTRACTS.LienFiAuction.abi,
     functionName: "lockExpiry",
     args: [address!],
-    query: { enabled: !!address },
+    query: { enabled: !!address, refetchInterval: 8000 },
   })
+
+  const refetch = () => {
+    refetchCanBid()
+    refetchPoolBalance()
+    refetchLockExpiry()
+  }
 
   return {
     canBid: canBid as boolean | undefined,
     poolBalance: poolBalance as bigint | undefined,
     lockExpiry: lockExpiry as bigint | undefined,
+    refetch,
   }
 }

@@ -45,14 +45,15 @@ type SettlementResult = {
 const submitSettlementToApi = (
   sendRequester: ConfidentialHTTPSendRequester,
   config: Config,
-  auctionId: string
+  auctionId: string,
+  onChainHashes: string[]
 ): SettlementResult => {
   const response = sendRequester
     .sendRequest({
       request: {
         url: `${config.url}/settle`,
         method: "POST",
-        bodyString: JSON.stringify({ auctionId }),
+        bodyString: JSON.stringify({ auctionId, onChainHashes }),
         multiHeaders: {
           "X-Api-Key": { values: ["{{.apiKey}}"] },
           "Content-Type": { values: ["application/json"] },
@@ -69,6 +70,23 @@ const submitSettlementToApi = (
     throw new Error(`Settlement API failed: ${response.statusCode}`)
   }
   return json(response) as SettlementResult
+}
+
+const readContract = (
+  evmClient: EVMClient,
+  runtime: Runtime<Config>,
+  to: Address,
+  functionName: string,
+  args?: readonly unknown[]
+): `0x${string}` => {
+  const data = encodeFunctionData({ abi: ABI, functionName, args })
+  const result = evmClient
+    .callContract(runtime, {
+      call: encodeCallMsg({ from: zeroAddress, to, data }),
+      blockNumber: LATEST_BLOCK_NUMBER,
+    })
+    .result()
+  return bytesToHex(result.data)
 }
 
 const onCronTrigger = (runtime: Runtime<Config>): string => {
@@ -111,19 +129,47 @@ const onCronTrigger = (runtime: Runtime<Config>): string => {
 
   runtime.log(`Active auction detected: ${activeAuctionId}`)
 
-  // 2. Call private API with auctionId to determine winner
+  // 2. Read on-chain bid hashes for this auction
+  const bidCountRaw = readContract(
+    evmClient, runtime, contractAddress as Address,
+    "getBidCount", [activeAuctionId]
+  )
+  const bidCount = Number(
+    decodeFunctionResult({ abi: ABI, functionName: "getBidCount", data: bidCountRaw })
+  )
+
+  if (bidCount === 0) {
+    runtime.log("No bids registered on-chain, skipping settlement")
+    return "no-op"
+  }
+
+  const onChainHashes: string[] = []
+  for (let i = 0; i < bidCount; i++) {
+    const hashRaw = readContract(
+      evmClient, runtime, contractAddress as Address,
+      "bidHashes", [activeAuctionId, BigInt(i)]
+    )
+    const hash = decodeFunctionResult({
+      abi: ABI, functionName: "bidHashes", data: hashRaw,
+    }) as `0x${string}`
+    onChainHashes.push(hash)
+  }
+
+  runtime.log(`Found ${bidCount} on-chain bid hash(es)`)
+
+  // 3. Call private API with auctionId + on-chain hashes to determine winner
   const confHTTPClient = new ConfidentialHTTPClient()
   const result = confHTTPClient
     .sendRequest(
       runtime,
       submitSettlementToApi,
       consensusIdenticalAggregation<SettlementResult>()
-    )(runtime.config, activeAuctionId)
+    )(runtime.config, activeAuctionId, onChainHashes)
     .result()
 
   runtime.log(`Settlement result: auctionId=${result.auctionId} winner=${result.winner} price=${result.price}`)
 
-  // 3. Encode settleAuction args and submit via DON-signed report
+  // 4. Encode settleAuction args and submit via DON-signed report
   const { gasLimit } = runtime.config.evms[0]
 
   const reportData = encodeAbiParameters(

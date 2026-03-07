@@ -69,3 +69,12 @@ export async function revealProperty(auctionId: string, signature: string) {
   })
   return res.json()
 }
+
+export async function getWorkflowLogs(requestHash: string, after?: number) {
+  const url = `${API_BASE}/workflow-logs/${requestHash}${after ? `?after=${after}` : ""}`
+  const res = await fetch(url)
+  return res.json() as Promise<{
+    logs: Array<{ line: string; timestamp: number }>
+    total: number
+  }>
+}

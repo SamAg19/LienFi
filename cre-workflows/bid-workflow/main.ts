@@ -35,17 +35,29 @@ const configSchema = z.object({
 type Config = z.infer<typeof configSchema>
 type BidResult = { auctionId: string; bidHash: string; }
 
-const submitBidToApi = (
+/**
+ * Confirm a bid and get its hash from the API.
+ * Calls POST /bid-hash (not POST /bid) to avoid duplicates —
+ * the frontend already stored the bid via POST /bid.
+ * This endpoint marks the bid as registered and returns the bidHash.
+ */
+const confirmBidHash = (
   sendRequester: ConfidentialHTTPSendRequester,
   config: Config,
   bidPayload: string
 ): BidResult => {
+  const parsed = JSON.parse(bidPayload)
+  const body = JSON.stringify({
+    auctionId: parsed.auctionId,
+    bidder: parsed.bidder,
+  })
+
   const response = sendRequester
     .sendRequest({
       request: {
-        url: `${config.url}/bid`,
+        url: `${config.url}/bid-hash`,
         method: "POST",
-        bodyString: bidPayload,
+        bodyString: body,
         multiHeaders: {
           "X-Api-Key": { values: ["{{.apiKey}}"] },
           "Content-Type": { values: ["application/json"] },
@@ -59,7 +71,7 @@ const submitBidToApi = (
     .result()
 
   if (!ok(response)) {
-    throw new Error(`Bid API failed: ${response.statusCode}`)
+    throw new Error(`Bid-hash API failed: ${response.statusCode}`)
   }
   return json(response) as BidResult
 }
@@ -81,7 +93,7 @@ const onBidSubmit = (runtime: Runtime<Config>, payload: HTTPPayload): string => 
   const result = confHTTPClient
     .sendRequest(
       runtime,
-      submitBidToApi,
+      confirmBidHash,
       consensusIdenticalAggregation<BidResult>()
     )(runtime.config, bidPayload)
     .result()

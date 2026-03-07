@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { GlassCard, GlassCardHeader, GlassCardContent } from "@/components/ui/glass-card"
+import { getWorkflowLogs } from "@/lib/api"
 import {
   ShieldCheck,
   Gavel,
@@ -9,14 +10,19 @@ import {
   Scale,
   Terminal,
   ChevronRight,
+  Copy,
+  Check,
+  Play,
+  Square,
 } from "lucide-react"
+import { toast } from "sonner"
 
 const WORKFLOWS = [
   {
     id: "credit-assessment",
     title: "Credit Assessment",
     description: "Evaluates borrower creditworthiness inside a CRE enclave. Fetches Plaid financial data, scores via LLM, and writes approval on-chain.",
-    command: "cre workflow simulate credit-assessment-workflow --target staging-settings --non-interactive --trigger-index 0 --broadcast --verbose",
+    command: (hash: string) => `./run-cre.sh credit-assessment-workflow ${hash || "<request-hash>"}`,
     icon: ShieldCheck,
     steps: ["Trigger: LoanManager.RequestSubmitted event", "Fetch borrower financial data via Plaid API", "Score creditworthiness with Groq LLM (llama-3.3-70b)", "Compute EMI, interest rate, approved limit", "Write LoanManager.approveLoan() on-chain"],
   },
@@ -24,23 +30,26 @@ const WORKFLOWS = [
     id: "create-auction",
     title: "Create Auction",
     description: "Cron-triggered workflow that scans for defaulted loans (3+ missed payments) and creates sealed-bid auctions on-chain.",
-    command: "cre workflow simulate create-auction-workflow --target staging-settings --non-interactive --trigger-index 0 --broadcast --verbose",
+    command: () => `./run-cre-cron.sh create-auction-workflow create-auction`,
+    fixedLogKey: "create-auction",
     icon: Gavel,
     steps: ["Trigger: Cron schedule (every 5 minutes)", "Read all active loans from LoanManager", "Check for defaults (missedPayments >= 3)", "Fetch property listing from API, compute hash", "Call LienFiAuction.createAuction() on-chain"],
   },
   {
     id: "bid",
     title: "Sealed Bid Collection",
-    description: "Collects EIP-712 signed bids off-chain. Bids are sealed — only the CRE enclave sees the amounts. Verified and stored securely.",
-    command: "POST /bid — EIP-712 signed bid submitted via API",
+    description: "HTTP-triggered CRE workflow that forwards signed bids to the API, validates eligibility, and registers the opaque bid hash on-chain via DON-signed report.",
+    command: () => `./run-cre-bid.sh /path/to/bid-payload.json bid`,
+    fixedLogKey: "bid",
     icon: Lock,
-    steps: ["Bidder deposits USDC to auction pool (World ID verified)", "Bidder signs EIP-712 typed data with bid amount", "API verifies signature and auction eligibility", "Bid stored in encrypted enclave storage", "Only opaque bid count visible on-chain"],
+    steps: ["Trigger: HTTP payload (signed bid JSON)", "Forward bid to API via Confidential HTTP", "API validates: EIP-712 sig, pool balance, lock expiry, reserve price", "Encode report: abi.encode(auctionId, bidHash)", "DON-sign and write to LienFiAuction._registerBid()"],
   },
   {
     id: "settlement",
     title: "Auction Settlement",
     description: "After deadline, the CRE workflow reveals all bids, determines the Vickrey winner (highest bidder pays second-highest price), and settles on-chain.",
-    command: "cre workflow simulate settlement-workflow --target staging-settings --non-interactive --trigger-index 0 --broadcast --verbose",
+    command: () => `./run-cre-cron.sh settlement-workflow settlement`,
+    fixedLogKey: "settlement",
     icon: Scale,
     steps: ["Trigger: Cron / manual after auction deadline", "Fetch all sealed bids from enclave storage", "Verify each EIP-712 signature", "Determine winner (highest bid) and price (second-highest)", "Call LienFiAuction.settleAuction() on-chain"],
   },
@@ -51,7 +60,7 @@ export default function WorkflowsPage() {
     <div className="space-y-6">
       <h1 className="display-title" style={{ marginTop: '16px' }}>Workflows</h1>
       <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', color: '#3D3D3D', marginTop: '-8px' }}>
-        Chainlink Runtime Environment workflows powering LienFi.
+        Chainlink Runtime Environment workflows powering LienFi. Paste a request hash to watch live output.
       </p>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {WORKFLOWS.map((wf) => <WorkflowPanel key={wf.id} workflow={wf} />)}
@@ -61,8 +70,63 @@ export default function WorkflowsPage() {
 }
 
 function WorkflowPanel({ workflow }: { workflow: (typeof WORKFLOWS)[number] }) {
-  const [output, setOutput] = useState("")
+  const [requestHash, setRequestHash] = useState("")
+  const logKey = workflow.fixedLogKey || requestHash
+  const [watching, setWatching] = useState(false)
+  const [lines, setLines] = useState<string[]>([])
+  const [copied, setCopied] = useState(false)
+  const terminalRef = useRef<HTMLDivElement>(null)
+  const lastTimestamp = useRef(0)
   const Icon = workflow.icon
+
+  const poll = useCallback(async () => {
+    if (!logKey) return
+    try {
+      const res = await getWorkflowLogs(logKey, lastTimestamp.current)
+      if (res.logs && res.logs.length > 0) {
+        const newLines = res.logs.map((l) => l.line)
+        setLines((prev) => [...prev, ...newLines])
+        lastTimestamp.current = res.logs[res.logs.length - 1].timestamp
+      }
+    } catch {}
+  }, [requestHash])
+
+  useEffect(() => {
+    if (!watching) return
+    poll()
+    const interval = setInterval(poll, 2000)
+    return () => clearInterval(interval)
+  }, [watching, poll])
+
+  // Auto-scroll terminal
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.scrollTop = terminalRef.current.scrollHeight
+    }
+  }, [lines])
+
+  const handleWatch = () => {
+    if (!logKey) {
+      toast.error("Enter a request hash first")
+      return
+    }
+    setLines([])
+    lastTimestamp.current = 0
+    setWatching(true)
+    toast.info("Watching for CRE output...")
+  }
+
+  const handleStop = () => {
+    setWatching(false)
+  }
+
+  const commandStr = workflow.fixedLogKey ? workflow.command() : workflow.command(requestHash)
+
+  const copyCommand = () => {
+    navigator.clipboard.writeText(commandStr)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   return (
     <GlassCard hover={false}>
@@ -95,10 +159,26 @@ function WorkflowPanel({ workflow }: { workflow: (typeof WORKFLOWS)[number] }) {
           </div>
         </div>
 
+        {/* Request hash input — only for event-triggered workflows */}
+        {!workflow.fixedLogKey && (
+          <div className="mb-4">
+            <p className="stat-label" style={{ marginBottom: '8px' }}>Request Hash</p>
+            <input
+              type="text"
+              placeholder="0x..."
+              value={requestHash}
+              onChange={(e) => setRequestHash(e.target.value)}
+              className="nb-input"
+              style={{ height: '38px', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}
+            />
+          </div>
+        )}
+
+        {/* CLI command with copy */}
         <div className="mb-4">
           <p className="stat-label" style={{ marginBottom: '8px' }}>CLI Command</p>
           <div
-            className="px-4 py-3"
+            className="px-4 py-3 flex items-center justify-between gap-2"
             style={{
               background: '#1A1A1A',
               border: '2px solid #0D0D0D',
@@ -106,33 +186,80 @@ function WorkflowPanel({ workflow }: { workflow: (typeof WORKFLOWS)[number] }) {
               boxShadow: '2px 2px 0px #0D0D0D',
             }}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 900, color: '#C8F135', fontSize: '14px' }}>&gt;</span>
               <code style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#FAFAF7', wordBreak: 'break-all' }}>
-                {workflow.command}
+                {commandStr}
               </code>
             </div>
+            <button onClick={copyCommand} className="shrink-0" style={{ color: '#888880' }}>
+              {copied ? <Check className="w-3.5 h-3.5" style={{ color: '#C8F135' }} /> : <Copy className="w-3.5 h-3.5" />}
+            </button>
           </div>
         </div>
 
+        {/* Live terminal */}
         <div>
-          <p className="stat-label" style={{ marginBottom: '8px' }}>Live Output</p>
-          <textarea
-            value={output}
-            onChange={(e) => setOutput(e.target.value)}
-            placeholder="Paste CRE simulation output here..."
-            className="nb-input"
+          <div className="flex items-center justify-between" style={{ marginBottom: '8px' }}>
+            <p className="stat-label flex items-center gap-2">
+              <Terminal className="w-3 h-3" />
+              Live Output
+              {watching && <span className="w-1.5 h-1.5 rounded-full inline-block anim-dot" style={{ background: '#C8F135' }} />}
+            </p>
+            {!watching ? (
+              <button
+                onClick={handleWatch}
+                className="nb-btn ghost"
+                style={{ padding: '4px 10px', fontSize: '10px', boxShadow: '2px 2px 0px #0D0D0D' }}
+              >
+                <Play className="w-3 h-3" />
+                Watch
+              </button>
+            ) : (
+              <button
+                onClick={handleStop}
+                className="nb-btn ghost"
+                style={{ padding: '4px 10px', fontSize: '10px', boxShadow: '2px 2px 0px #0D0D0D' }}
+              >
+                <Square className="w-3 h-3" />
+                Stop
+              </button>
+            )}
+          </div>
+          <div
+            ref={terminalRef}
             style={{
-              width: '100%',
-              height: '144px',
-              resize: 'vertical',
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: '11px',
+              background: '#1A1A1A',
+              border: '2px solid #0D0D0D',
+              borderRadius: '4px',
+              boxShadow: '2px 2px 0px #0D0D0D',
+              height: '360px',
+              overflowY: 'auto',
+              padding: '12px 16px',
             }}
-            spellCheck={false}
-          />
+          >
+            {lines.length === 0 ? (
+              <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#555' }}>
+                {watching ? "Waiting for CRE output..." : "Run the CLI command above, then click Watch to see live output here."}
+              </p>
+            ) : (
+              lines.map((line, i) => (
+                <div key={i} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: lineColor(line), lineHeight: 1.7 }}>
+                  {line}
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </GlassCardContent>
     </GlassCard>
   )
+}
+
+function lineColor(line: string): string {
+  if (line.startsWith("✓") || line.includes("passed") || line.includes("approved")) return "#A8F0D8"
+  if (line.startsWith("✗") || line.includes("REJECTED") || line.includes("failed") || line.includes("Error")) return "#FF8A80"
+  if (line.startsWith("▶") || line.startsWith("---")) return "#C8F135"
+  if (line.includes("WARNING") || line.includes("WARN")) return "#FFD180"
+  return "#FAFAF7"
 }
