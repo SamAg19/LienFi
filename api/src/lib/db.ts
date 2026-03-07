@@ -8,7 +8,7 @@ export async function connectDB(uri: string): Promise<Db> {
 
   client = new MongoClient(uri);
   await client.connect();
-  db = client.db();
+  db = client.db("test");
 
   // Create indexes
   await db.collection("auctions").createIndex({ auctionId: 1 }, { unique: true });
