@@ -139,7 +139,7 @@ contract LoanManager is ReceiverTemplate, ReentrancyGuard {
     ///////////////////
     // Constants
     ///////////////////
-    uint256 public constant EMI_PERIOD = 5 minutes; //5 minutes in secs
+    uint256 public constant EMI_PERIOD = 2 minutes; //2 minutes in secs
     uint256 public constant BPS_DENOMINATOR = 10_000; //basis points denominator for interest rate calculations (10000 = 100%)
 
     ///////////////////

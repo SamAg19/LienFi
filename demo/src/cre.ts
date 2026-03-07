@@ -1,9 +1,6 @@
-import { exec } from "child_process";
-import { promisify } from "util";
+import { spawn } from "child_process";
 import { writeFileSync, unlinkSync } from "fs";
 import { join } from "path";
-
-const execAsync = promisify(exec);
 
 export interface CREResult {
   stdout: string;
@@ -57,31 +54,40 @@ export async function runCREWorkflow(opts: {
 
   args.push("--verbose");
 
-  const cmd = args.join(" ");
-  console.log(`  CRE CMD: ${cmd}`);
+  console.log(`  CRE CMD: ${args.join(" ")}`);
 
-  try {
-    const { stdout, stderr } = await execAsync(cmd, {
+  return new Promise<CREResult>((resolve) => {
+    const child = spawn(args[0], args.slice(1), {
       cwd: opts.creDir,
-      timeout: opts.timeoutMs || 5 * 60 * 1000,
       env: { ...process.env },
-      maxBuffer: 10 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe"],
     });
 
-    return { stdout, stderr, success: true };
-  } catch (err: any) {
-    return {
-      stdout: err.stdout || "",
-      stderr: err.stderr || err.message || "",
-      success: false,
-    };
-  } finally {
-    if (tempPayloadPath) {
-      try {
-        unlinkSync(tempPayloadPath);
-      } catch {
-        /* ignore */
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (data: Buffer) => {
+      const text = data.toString();
+      stdout += text;
+      process.stdout.write(text);
+    });
+
+    child.stderr.on("data", (data: Buffer) => {
+      const text = data.toString();
+      stderr += text;
+      process.stderr.write(text);
+    });
+
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM");
+    }, opts.timeoutMs || 5 * 60 * 1000);
+
+    child.on("close", (code) => {
+      clearTimeout(timeout);
+      if (tempPayloadPath) {
+        try { unlinkSync(tempPayloadPath); } catch { /* ignore */ }
       }
-    }
-  }
+      resolve({ stdout, stderr, success: code === 0 });
+    });
+  });
 }

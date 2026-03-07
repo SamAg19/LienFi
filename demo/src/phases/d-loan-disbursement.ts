@@ -25,42 +25,69 @@ export async function phaseD(
   if (!tokenId) throw new Error("Phase B must complete first (need tokenId)");
   if (!requestHash) throw new Error("Phase C must complete first (need requestHash)");
 
+  const done = checkpoint.phaseD?.step ?? 0;
+
   // Step 1: Approve LoanManager for PropertyNFT
-  log.step(1, 4, `Approving LoanManager for PropertyNFT #${tokenId}`);
-  const approveHash = await clients.borrower.writeContract({
-    address: config.propertyNftAddress,
-    abi: PropertyNFTABI,
-    functionName: "approve",
-    args: [config.loanManagerAddress, BigInt(tokenId)],
-  });
-  await clients.publicClient.waitForTransactionReceipt({ hash: approveHash });
-  log.tx("approve", approveHash);
+  if (done < 1) {
+    log.step(1, 4, `Approving LoanManager for PropertyNFT #${tokenId}`);
+    const approveHash = await clients.borrower.writeContract({
+      address: config.propertyNftAddress,
+      abi: PropertyNFTABI,
+      functionName: "approve",
+      args: [config.loanManagerAddress, BigInt(tokenId)],
+    });
+    await clients.publicClient.waitForTransactionReceipt({ hash: approveHash });
+    log.tx("approve", approveHash);
+
+    checkpoint.phaseD = { ...checkpoint.phaseD, step: 1, approveTxHash: approveHash };
+    saveCheckpoint(checkpoint);
+  } else {
+    log.step(1, 4, "Approve LoanManager for PropertyNFT — already done, skipping");
+  }
 
   // Step 2: Claim loan
-  log.step(2, 4, "Claiming loan (disbursing USDC)");
-  const claimHash = await clients.borrower.writeContract({
-    address: config.loanManagerAddress,
-    abi: LoanManagerABI,
-    functionName: "claimLoan",
-    args: [requestHash as `0x${string}`],
-  });
-  await clients.publicClient.waitForTransactionReceipt({ hash: claimHash });
-  log.tx("claimLoan", claimHash);
+  if (done < 2) {
+    log.step(2, 4, "Claiming loan (disbursing USDC)");
+    const claimHash = await clients.borrower.writeContract({
+      address: config.loanManagerAddress,
+      abi: LoanManagerABI,
+      functionName: "claimLoan",
+      args: [requestHash as `0x${string}`],
+    });
+    await clients.publicClient.waitForTransactionReceipt({ hash: claimHash });
+    log.tx("claimLoan", claimHash);
+
+    checkpoint.phaseD = { ...checkpoint.phaseD, step: 2, claimTxHash: claimHash };
+    saveCheckpoint(checkpoint);
+  } else {
+    log.step(2, 4, "Claim loan — already done, skipping");
+  }
 
   // Step 3: Verify loan is active
   log.step(3, 4, "Verifying loan state");
+  const borrowerAddr_ = clients.borrower.account.address;
+  const activeLoanId = (await clients.publicClient.readContract({
+    address: config.loanManagerAddress,
+    abi: LoanManagerABI,
+    functionName: "getActiveLoanId",
+    args: [borrowerAddr_],
+  })) as bigint;
+
+  if (activeLoanId === 0n) {
+    throw new Error("No active loan found for borrower");
+  }
+
   const loan = (await clients.publicClient.readContract({
     address: config.loanManagerAddress,
     abi: LoanManagerABI,
     functionName: "getLoan",
-    args: [1n],
-  })) as any[];
+    args: [activeLoanId],
+  })) as any;
 
-  // Loan struct: (loanId, borrower, tokenId, principal, interestRateBps, tenureMonths, emiAmount, nextDueDate, missedPayments, remainingPrincipal, status)
-  const loanId = Number(loan[0]);
-  const status = Number(loan[10]);
-  const principal = BigInt(loan[3]);
-  const emiAmount = BigInt(loan[6]);
+  const loanId = Number(activeLoanId);
+  const status = Number(loan.status);
+  const principal = BigInt(loan.principal);
+  const emiAmount = BigInt(loan.emiAmount);
 
   log.verify("Loan ID", String(loanId));
   log.verify("Status", status === 0 ? "ACTIVE" : String(status));
@@ -90,8 +117,9 @@ export async function phaseD(
   log.verify("NFT now held by", shortAddr(nftOwner));
 
   checkpoint.phaseD = {
+    ...checkpoint.phaseD,
+    step: 4,
     loanId,
-    claimTxHash: claimHash,
     completedAt: new Date().toISOString(),
   };
   saveCheckpoint(checkpoint);

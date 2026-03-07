@@ -24,105 +24,144 @@ export async function phaseC(
   const tokenId = checkpoint.phaseB?.tokenId;
   if (!tokenId) throw new Error("Phase B must complete first (need tokenId)");
 
+  const done = checkpoint.phaseC?.step ?? 0;
+
   // Step 1: Generate Plaid sandbox access token
-  log.step(1, 5, "Generating Plaid sandbox access token");
+  let plaidAccessToken = checkpoint.phaseC?.plaidAccessToken;
 
-  const publicTokenRes = await retry(
-    async () => {
-      const res = await fetch("https://sandbox.plaid.com/sandbox/public_token/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          client_id: config.plaidClientId,
-          secret: config.plaidSecret,
-          institution_id: "ins_109508",
-          initial_products: ["transactions"],
-        }),
-      });
-      if (!res.ok) throw new Error(`Plaid error: ${res.status} ${await res.text()}`);
-      return res.json();
-    },
-    { label: "plaid-public-token" }
-  );
+  if (done < 1) {
+    log.step(1, 5, "Generating Plaid sandbox access token");
 
-  const exchangeRes = await retry(
-    async () => {
-      const res = await fetch("https://sandbox.plaid.com/item/public_token/exchange", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          client_id: config.plaidClientId,
-          secret: config.plaidSecret,
-          public_token: publicTokenRes.public_token,
-        }),
-      });
-      if (!res.ok) throw new Error(`Plaid exchange error: ${res.status} ${await res.text()}`);
-      return res.json();
-    },
-    { label: "plaid-exchange" }
-  );
+    const publicTokenRes = await retry(
+      async () => {
+        const res = await fetch("https://sandbox.plaid.com/sandbox/public_token/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            client_id: config.plaidClientId,
+            secret: config.plaidSecret,
+            institution_id: "ins_109508",
+            initial_products: ["transactions"],
+          }),
+        });
+        if (!res.ok) throw new Error(`Plaid error: ${res.status} ${await res.text()}`);
+        return res.json();
+      },
+      { label: "plaid-public-token" }
+    );
 
-  const plaidAccessToken = exchangeRes.access_token;
-  log.verify("Plaid access token", `${plaidAccessToken.slice(0, 20)}...`);
+    const exchangeRes = await retry(
+      async () => {
+        const res = await fetch("https://sandbox.plaid.com/item/public_token/exchange", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            client_id: config.plaidClientId,
+            secret: config.plaidSecret,
+            public_token: publicTokenRes.public_token,
+          }),
+        });
+        if (!res.ok) throw new Error(`Plaid exchange error: ${res.status} ${await res.text()}`);
+        return res.json();
+      },
+      { label: "plaid-exchange" }
+    );
+
+    plaidAccessToken = exchangeRes.access_token;
+    log.verify("Plaid access token", `${plaidAccessToken!.slice(0, 20)}...`);
+
+    checkpoint.phaseC = { ...checkpoint.phaseC, step: 1, plaidAccessToken };
+    saveCheckpoint(checkpoint);
+  } else {
+    log.step(1, 5, "Plaid access token — already done, skipping");
+    plaidAccessToken = checkpoint.phaseC?.plaidAccessToken;
+  }
 
   // Step 2: Submit loan request to API
-  log.step(2, 5, "Submitting loan request to API");
+  let requestHash = checkpoint.phaseC?.requestHash;
 
-  const loanReqRes = await retry(
-    async () => {
-      const res = await fetch(`${config.apiUrl}/loan-request`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          borrowerAddress: borrowerAddr,
-          plaidToken: plaidAccessToken,
-          tokenId,
-          requestedAmount: config.loanRequestAmount,
-          tenureMonths: config.loanTenureMonths,
-          nonce: config.loanNonce,
-        }),
-      });
-      if (!res.ok) throw new Error(`API error: ${res.status} ${await res.text()}`);
-      return res.json();
-    },
-    { label: "loan-request", maxAttempts: 3, delayMs: 10000 }
-  );
+  if (done < 2) {
+    log.step(2, 5, "Submitting loan request to API");
 
-  const requestHash: string = loanReqRes.requestHash;
-  log.verify("Request Hash", requestHash);
+    const loanReqRes = await retry(
+      async () => {
+        const res = await fetch(`${config.apiUrl}/loan-request`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Api-Key": config.apiKey },
+          body: JSON.stringify({
+            borrowerAddress: borrowerAddr,
+            plaidToken: plaidAccessToken,
+            tokenId,
+            requestedAmount: config.loanRequestAmount,
+            tenureMonths: config.loanTenureMonths,
+            nonce: config.loanNonce,
+          }),
+        });
+        if (!res.ok) throw new Error(`API error: ${res.status} ${await res.text()}`);
+        return res.json();
+      },
+      { label: "loan-request", maxAttempts: 3, delayMs: 10000 }
+    );
+
+    requestHash = loanReqRes.requestHash;
+    log.verify("Request Hash", requestHash!);
+
+    checkpoint.phaseC = { ...checkpoint.phaseC, step: 2, requestHash };
+    saveCheckpoint(checkpoint);
+  } else {
+    log.step(2, 5, "Loan request to API — already done, skipping");
+    requestHash = checkpoint.phaseC?.requestHash;
+  }
 
   // Step 3: Submit requestHash on-chain
-  log.step(3, 5, `Submitting requestHash on-chain as borrower ${shortAddr(borrowerAddr)}`);
-  const submitTxHash = await clients.borrower.writeContract({
-    address: config.loanManagerAddress,
-    abi: LoanManagerABI,
-    functionName: "submitRequest",
-    args: [requestHash as `0x${string}`],
-  });
-  const submitReceipt = await clients.publicClient.waitForTransactionReceipt({
-    hash: submitTxHash,
-  });
-  log.tx("submitRequest", submitTxHash);
-  log.verify("Block", submitReceipt.blockNumber.toString());
+  let submitTxHash = checkpoint.phaseC?.submitTxHash;
+
+  if (done < 3) {
+    log.step(3, 5, `Submitting requestHash on-chain as borrower ${shortAddr(borrowerAddr)}`);
+    submitTxHash = await clients.borrower.writeContract({
+      address: config.loanManagerAddress,
+      abi: LoanManagerABI,
+      functionName: "submitRequest",
+      args: [requestHash as `0x${string}`],
+    });
+    const submitReceipt = await clients.publicClient.waitForTransactionReceipt({
+      hash: submitTxHash!,
+    });
+    log.tx("submitRequest", submitTxHash!);
+    log.verify("Block", submitReceipt.blockNumber.toString());
+
+    checkpoint.phaseC = { ...checkpoint.phaseC, step: 3, submitTxHash };
+    saveCheckpoint(checkpoint);
+  } else {
+    log.step(3, 5, "Submit requestHash on-chain — already done, skipping");
+    submitTxHash = checkpoint.phaseC?.submitTxHash;
+  }
 
   // Step 4: Run CRE credit-assessment workflow
-  log.step(4, 5, "Running CRE credit-assessment workflow");
+  if (done < 4) {
+    log.step(4, 5, "Running CRE credit-assessment workflow");
 
-  const creResult = await runCREWorkflow({
-    creDir: config.creWorkflowsDir,
-    workflowDir: "credit-assessment-workflow",
-    evmTxHash: submitTxHash,
-    evmEventIndex: 0,
-    broadcast: true,
-  });
+    const creResult = await runCREWorkflow({
+      creDir: config.creWorkflowsDir,
+      workflowDir: "credit-assessment-workflow",
+      evmTxHash: submitTxHash!,
+      evmEventIndex: 0,
+      broadcast: true,
+    });
 
-  if (!creResult.success) {
-    log.error("CRE workflow failed:");
-    console.log(creResult.stdout);
-    console.error(creResult.stderr);
-    throw new Error("Credit assessment CRE workflow failed");
+    if (!creResult.success) {
+      log.error("CRE workflow failed:");
+      console.log(creResult.stdout);
+      console.error(creResult.stderr);
+      throw new Error("Credit assessment CRE workflow failed");
+    }
+    log.info("CRE workflow completed");
+
+    checkpoint.phaseC = { ...checkpoint.phaseC, step: 4 };
+    saveCheckpoint(checkpoint);
+  } else {
+    log.step(4, 5, "CRE credit-assessment workflow — already done, skipping");
   }
-  log.info("CRE workflow completed");
 
   // Step 5: Poll for verdict on-chain
   log.step(5, 5, "Polling for credit verdict on-chain");
@@ -137,7 +176,6 @@ export async function phaseC(
         args: [borrowerAddr],
       })) as any[];
 
-      // Approval struct: (requestHash, tokenId, approvedLimit, tenureMonths, computedEMI, expiresAt, exists)
       const exists = approval[6];
       if (exists) {
         approved = true;
@@ -158,9 +196,8 @@ export async function phaseC(
   }
 
   checkpoint.phaseC = {
-    plaidAccessToken,
-    requestHash,
-    submitTxHash,
+    ...checkpoint.phaseC,
+    step: 5,
     completedAt: new Date().toISOString(),
   };
   saveCheckpoint(checkpoint);
