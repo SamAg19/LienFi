@@ -112,17 +112,6 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  if (property.tokenized) {
-    res.status(200).json({
-      valid: false,
-      tokenId: 0,
-      metadataHash: "0x",
-      appraisedValue: property.appraisedValueUsd.toString(),
-      message: "Property already tokenized — cannot tokenize twice",
-    });
-    return;
-  }
-
   // --- Compute metadataHash ---
   // keccak256(propertyAddress + appraisedValue + titleDeedNumber + secret)
   const abiCoder = AbiCoder.defaultAbiCoder();
