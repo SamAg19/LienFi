@@ -12,6 +12,8 @@ import listingRouter from "./routes/listing";
 import listingHashRouter from "./routes/listingHash";
 import revealRouter from "./routes/reveal";
 import workflowLogsRouter from "./routes/workflowLogs";
+import pendingBidRouter from "./routes/pendingBid";
+import bidHashRouter from "./routes/bidHash";
 
 dotenv.config();
 
@@ -29,6 +31,8 @@ app.get("/health", (_req, res) => {
 
 // --- Protected routes (API key required) ---
 app.use("/bid", authMiddleware, bidRouter);
+app.use("/bid-hash", authMiddleware, bidHashRouter);
+app.use("/pending-bid", authMiddleware, pendingBidRouter);
 app.use("/settle", authMiddleware, settleRouter);
 app.use("/status", authMiddleware, statusRouter);
 app.use("/verify-property", authMiddleware, verifyPropertyRouter);
@@ -56,6 +60,8 @@ app.use("/workflow-logs", workflowLogsRouter);
     app.listen(PORT, () => {
     console.log(`\n LienFi API running on port ${PORT}`);
     console.log(`   POST /bid              — Submit a signed bid`);
+    console.log(`   POST /bid-hash         — Confirm bid hash (CRE workflow)`);
+    console.log(`   GET  /pending-bid      — Next unregistered bid payload`);
     console.log(`   POST /settle           — Run Vickrey settlement`);
     console.log(`   GET  /status/:id       — Auction status`);
     console.log(`   POST /verify-property  — Verify property for tokenization`);

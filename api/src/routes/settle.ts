@@ -11,7 +11,11 @@ const router = Router();
  * Runs Vickrey settlement for an auction.
  * Called via Confidential HTTP from CRE Workflow 2 with encryptOutput: true.
  *
- * Body: { auctionId: string }
+ * Body: {
+ *   auctionId: string,
+ *   onChainHashes?: string[]  — optional array of bid hashes read from on-chain.
+ *                                If provided, only bids matching these hashes are considered.
+ * }
  *
  * Returns: {
  *   auctionId: string,
@@ -21,7 +25,7 @@ const router = Router();
  */
 router.post("/", async (req: Request, res: Response): Promise<void> => {
   try {
-    const { auctionId } = req.body;
+    const { auctionId, onChainHashes } = req.body;
 
     if (!auctionId) {
       res.status(400).json({ error: "Missing auctionId" });
@@ -41,10 +45,28 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     }
 
     // --- Get bids ---
-    const bids = await getBids(auctionId);
+    let bids = await getBids(auctionId);
     if (bids.length === 0) {
       res.status(400).json({ error: "No bids to settle" });
       return;
+    }
+
+    // --- Filter by on-chain hashes if provided ---
+    if (onChainHashes && Array.isArray(onChainHashes) && onChainHashes.length > 0) {
+      const hashSet = new Set(
+        onChainHashes.map((h: string) => h.toLowerCase())
+      );
+      bids = bids.filter((b) => hashSet.has(b.bidHash.toLowerCase()));
+
+      if (bids.length === 0) {
+        res.status(400).json({
+          error: "No stored bids match the on-chain bid hashes",
+        });
+        return;
+      }
+      console.log(
+        `[SETTLE] Filtered to ${bids.length} bid(s) matching ${onChainHashes.length} on-chain hash(es)`
+      );
     }
 
     // --- Fetch reserve price from chain ---

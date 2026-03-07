@@ -136,6 +136,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       signature,
       bidHash,
       timestamp,
+      registered: false,
     });
 
     if (!stored) {

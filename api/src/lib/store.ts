@@ -18,6 +18,7 @@ export interface StoredBid {
   signature: string;
   bidHash: string;
   timestamp: number;
+  registered: boolean;
 }
 
 export interface AuctionState {
@@ -97,6 +98,7 @@ export async function storeBid(bid: StoredBid): Promise<boolean> {
       signature: bid.signature,
       bidHash: bid.bidHash,
       timestamp: bid.timestamp,
+      registered: false,
     });
     return true;
   } catch (err: any) {
@@ -123,7 +125,48 @@ export async function getBids(auctionId: string): Promise<StoredBid[]> {
     signature: d.signature as string,
     bidHash: d.bidHash as string,
     timestamp: d.timestamp as number,
+    registered: (d.registered as boolean) ?? false,
   }));
+}
+
+/**
+ * Get the oldest bid that hasn't been registered on-chain yet.
+ */
+export async function getOldestPendingBid(): Promise<StoredBid | null> {
+  const doc = await getDb()
+    .collection("bids")
+    .findOne({ registered: false }, { sort: { timestamp: 1 } });
+
+  if (!doc) return null;
+  return {
+    auctionId: doc.auctionId as string,
+    bidder: doc.bidder as string,
+    amount: doc.amount as string,
+    nonce: doc.nonce as number,
+    signature: doc.signature as string,
+    bidHash: doc.bidHash as string,
+    timestamp: doc.timestamp as number,
+    registered: false,
+  };
+}
+
+/**
+ * Mark a bid as registered on-chain. Returns the bidHash, or null if not found.
+ */
+export async function markBidRegistered(
+  auctionId: string,
+  bidder: string
+): Promise<string | null> {
+  const result = await getDb()
+    .collection("bids")
+    .findOneAndUpdate(
+      { auctionId, bidder: bidder.toLowerCase() },
+      { $set: { registered: true } },
+      { returnDocument: "after" }
+    );
+
+  if (!result) return null;
+  return result.bidHash as string;
 }
 
 /**

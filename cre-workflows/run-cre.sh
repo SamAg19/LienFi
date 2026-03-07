@@ -38,6 +38,7 @@ cre workflow simulate "$WORKFLOW_DIR" \
   --broadcast \
   --verbose \
   --evm-tx-hash "$EVM_TX_HASH" \
+  --evm-event-index 0 \
   "$@" 2>&1 | while IFS= read -r line; do
     # Print to local terminal as usual
     echo "$line"
