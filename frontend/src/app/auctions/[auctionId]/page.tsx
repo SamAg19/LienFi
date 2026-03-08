@@ -244,27 +244,21 @@ export default function AuctionDetailPage() {
       )}
 
       {/* Action panels */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {!auction.settled && !isExpired && (
-          <DepositToPoolPanel
-            auctionId={auctionId}
-            deadline={Number(auction.deadline)}
-            bidStatus={bidStatus}
-            balances={balances}
-            address={address}
-          />
-        )}
-        {!auction.settled && !isExpired && (
-          <BidPanel
-            auctionId={auctionId}
-            deadline={Number(auction.deadline)}
-            canBid={bidStatus.canBid}
-            address={address}
-            onBidSubmitted={() => refetchBidCount()}
-          />
-        )}
-        {auction.settled && isWinner && <RevealPanel auctionId={auctionId} />}
-      </div>
+      {!auction.settled && !isExpired && (
+        <AuctionActionPanel
+          auctionId={auctionId}
+          deadline={Number(auction.deadline)}
+          bidStatus={bidStatus}
+          balances={balances}
+          address={address}
+          onBidSubmitted={() => refetchBidCount()}
+        />
+      )}
+      {auction.settled && isWinner && (
+        <div className="grid grid-cols-1 gap-4">
+          <RevealPanel auctionId={auctionId} />
+        </div>
+      )}
 
       {/* Your bid status (if connected) */}
       {address && !auction.settled && (
@@ -314,7 +308,7 @@ export default function AuctionDetailPage() {
             <LifecycleStep
               num="2"
               title="Sealed Bidding Phase"
-              description="Bidders deposit USDC (World ID verified) then submit EIP-712 signed bids. Amounts are hidden."
+              description="Bidders deposit USDC to the pool then submit EIP-712 signed bids. Amounts are hidden."
               done={isExpired || auction.settled}
               active={!isExpired && !auction.settled}
               accent="#C4B5FF"
@@ -420,191 +414,98 @@ function LifecycleConnector({ done }: { done: boolean }) {
   )
 }
 
-/* --- Deposit Panel --- */
+/* --- Single Smart Action Panel --- */
 
-function DepositToPoolPanel({
+function AuctionActionPanel({
   auctionId,
   deadline,
   bidStatus,
   balances,
   address,
+  onBidSubmitted,
 }: {
   auctionId: string
   deadline: number
   bidStatus: ReturnType<typeof useAuctionBidStatus>
   balances: ReturnType<typeof useTokenBalances>
   address: `0x${string}` | undefined
+  onBidSubmitted: () => void
 }) {
-  const [amount, setAmount] = useState("")
-  const [step, setStep] = useState<"idle" | "approving" | "depositing">("idle")
-  const { writeContract, isPending } = useBlockscoutTx()
+  const [depositAmount, setDepositAmount] = useState("")
+  const [bidAmount, setBidAmount] = useState("")
+  const [submittingBid, setSubmittingBid] = useState(false)
+  const [bidHash, setBidHash] = useState<string | null>(null)
+  const { writeContractAsync, isPending } = useBlockscoutTx()
+  const { signTypedDataAsync } = useSignTypedData()
 
-  const handleDeposit = () => {
-    if (!address || !amount) return
-    const parsedAmount = parseUSDC(amount)
-    const lockUntil = BigInt(deadline + 86400)
-    const root = 1n
-    const nullifierHash = BigInt(Date.now())
-    const proof: readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint] = [0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n]
-    const allowance = balances.usdcAllowanceLendingPool ?? 0n
+  // Track deposit locally so UI updates immediately
+  const [depositedLocally, setDepositedLocally] = useState(false)
 
-    if (allowance < parsedAmount) {
-      setStep("approving")
-      writeContract(
-        {
-          address: CONTRACTS.MockUSDC.address,
-          abi: CONTRACTS.MockUSDC.abi,
-          functionName: "approve",
-          args: [CONTRACTS.LienFiAuction.address, parsedAmount],
-        },
-        {
-          onSuccess: () => {
-            toast.success("USDC approved, depositing...")
-            setStep("depositing")
-            writeContract(
-              {
-                address: CONTRACTS.LienFiAuction.address,
-                abi: CONTRACTS.LienFiAuction.abi,
-                functionName: "depositToPool",
-                args: [CONTRACTS.MockUSDC.address, lockUntil, parsedAmount, root, nullifierHash, proof],
-              },
-              {
-                onSuccess: () => { toast.success("Deposit successful!"); setAmount(""); setStep("idle"); balances.refetch(); bidStatus.refetch() },
-                onError: (e) => { toast.error(`Deposit failed: ${e.message.slice(0, 80)}`); setStep("idle") },
-              }
-            )
-          },
-          onError: (e) => { toast.error(`Approval failed: ${e.message.slice(0, 80)}`); setStep("idle") },
-        }
-      )
-    } else {
-      setStep("depositing")
-      writeContract(
-        {
-          address: CONTRACTS.LienFiAuction.address,
-          abi: CONTRACTS.LienFiAuction.abi,
-          functionName: "depositToPool",
-          args: [CONTRACTS.MockUSDC.address, lockUntil, parsedAmount, root, nullifierHash, proof],
-        },
-        {
-          onSuccess: () => { toast.success("Deposit successful!"); setAmount(""); setStep("idle"); balances.refetch(); bidStatus.refetch() },
-          onError: (e) => { toast.error(`Deposit failed: ${e.message.slice(0, 80)}`); setStep("idle") },
-        }
-      )
+  // On-chain state
+  const poolBal = bidStatus.poolBalance
+  const hasDeposited = depositedLocally || (poolBal !== undefined && poolBal > 0n)
+  const canBid = bidStatus.canBid === true
+
+  // Allowance check for deposit amount
+  const parsedDeposit = depositAmount ? parseUSDC(depositAmount) : 0n
+  const hasEnoughAllowance = balances.usdcAllowanceAuction !== undefined
+    && parsedDeposit > 0n
+    && balances.usdcAllowanceAuction >= parsedDeposit
+
+  // Local state to track approval within session
+  const [approvedInSession, setApprovedInSession] = useState(false)
+  const effectiveAllowance = approvedInSession || hasEnoughAllowance
+
+  // --- Handlers ---
+  const handleApprove = async () => {
+    if (!depositAmount) return
+    console.log("[Approve] amount:", depositAmount, "parsed:", parsedDeposit.toString())
+    try {
+      const hash = await writeContractAsync({
+        address: CONTRACTS.MockUSDC.address,
+        abi: CONTRACTS.MockUSDC.abi,
+        functionName: "approve",
+        args: [CONTRACTS.LienFiAuction.address, parsedDeposit],
+      })
+      console.log("[Approve] tx hash:", hash)
+      toast.success("USDC approved! Now click Deposit.")
+      setApprovedInSession(true)
+      balances.refetch()
+    } catch (e: any) {
+      console.error("[Approve] Error:", e)
+      toast.error(`Approval failed: ${e.shortMessage || e.message?.slice(0, 100)}`)
     }
   }
 
-  const busy = isPending || step !== "idle"
-
-  return (
-    <GlassCard hover={false}>
-      <GlassCardHeader>
-        <div className="flex items-center gap-2">
-          <div
-            className="w-6 h-6 flex items-center justify-center"
-            style={{ border: '2px solid #0D0D0D', borderRadius: '4px', background: '#A8D8FF' }}
-          >
-            <DollarSign className="w-3.5 h-3.5" style={{ color: '#0D0D0D' }} />
-          </div>
-          <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: 700, color: '#0D0D0D' }}>
-            Step 1 — Deposit to Pool
-          </h2>
-        </div>
-      </GlassCardHeader>
-      <GlassCardContent>
-        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', color: '#3D3D3D', marginBottom: '16px', lineHeight: 1.6 }}>
-          Deposit USDC with World ID verification to become eligible to bid. Funds are locked until auction settlement.
-        </p>
-
-        {bidStatus.poolBalance !== undefined && bidStatus.poolBalance > 0n && (
-          <div
-            className="mb-4 px-4 py-3 flex items-center gap-2"
-            style={{ background: '#A8F0D8', border: '2px solid #0D0D0D', borderRadius: '4px', boxShadow: '2px 2px 0px #0D0D0D' }}
-          >
-            <Shield className="w-4 h-4" style={{ color: '#0D0D0D' }} />
-            <div>
-              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: 700, color: '#0D0D0D' }}>
-                Pool Balance: {formatUSDC(bidStatus.poolBalance)} USDC
-              </p>
-              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', color: '#3D3D3D' }}>
-                You are eligible to place a sealed bid
-              </p>
-            </div>
-          </div>
-        )}
-
-        <div className="space-y-3">
-          <div>
-            <label className="stat-label" style={{ marginBottom: '8px', display: 'block' }}>Deposit Amount (USDC)</label>
-            <div className="relative">
-              <input
-                type="number"
-                placeholder="0.00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="nb-input"
-                style={{ paddingRight: '60px', height: '44px' }}
-              />
-              <button
-                onClick={() => { if (balances.usdcBalance) setAmount((Number(balances.usdcBalance) / 1e6).toString()) }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 nb-tag"
-                style={{ background: '#C8F135', cursor: 'pointer' }}
-              >
-                MAX
-              </button>
-            </div>
-          </div>
-
-          {balances.usdcBalance !== undefined && (
-            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', color: '#888880' }}>
-              Wallet: {formatUSDC(balances.usdcBalance)} USDC available
-            </p>
-          )}
-
-          <button
-            onClick={handleDeposit}
-            disabled={!address || !amount || busy}
-            className="nb-btn lime w-full"
-            style={{ height: '44px' }}
-          >
-            {busy
-              ? step === "approving"
-                ? "Approving USDC (1/2)..."
-                : "Depositing to Pool (2/2)..."
-              : "Deposit to Auction Pool"
-            }
-          </button>
-        </div>
-      </GlassCardContent>
-    </GlassCard>
-  )
-}
-
-/* --- Bid Panel --- */
-
-function BidPanel({
-  auctionId,
-  deadline,
-  canBid,
-  address,
-  onBidSubmitted,
-}: {
-  auctionId: string
-  deadline: number
-  canBid?: boolean
-  address: `0x${string}` | undefined
-  onBidSubmitted: () => void
-}) {
-  const [amount, setAmount] = useState("")
-  const [submitting, setSubmitting] = useState(false)
-  const [bidHash, setBidHash] = useState<string | null>(null)
-  const { signTypedDataAsync } = useSignTypedData()
+  const handleDeposit = async () => {
+    if (!depositAmount) return
+    const lockUntil = BigInt(deadline + 86400)
+    console.log("[Deposit] amount:", parsedDeposit.toString(), "lockUntil:", lockUntil.toString(), "token:", CONTRACTS.MockUSDC.address)
+    try {
+      const hash = await writeContractAsync({
+        address: CONTRACTS.LienFiAuction.address,
+        abi: CONTRACTS.LienFiAuction.abi,
+        functionName: "depositToPool",
+        args: [CONTRACTS.MockUSDC.address, lockUntil, parsedDeposit],
+      })
+      console.log("[Deposit] tx hash:", hash)
+      toast.success("Deposit successful! You can now place a sealed bid.")
+      setDepositedLocally(true)
+      setDepositAmount("")
+      setApprovedInSession(false)
+      balances.refetch()
+      bidStatus.refetch()
+    } catch (e: any) {
+      console.error("[Deposit] Error:", e)
+      toast.error(`Deposit failed: ${e.shortMessage || e.message?.slice(0, 100)}`)
+    }
+  }
 
   const handleBid = async () => {
-    if (!address || !amount) return
-    setSubmitting(true)
+    if (!address || !bidAmount) return
+    setSubmittingBid(true)
     try {
-      const parsedAmount = parseUSDC(amount)
+      const parsedAmount = parseUSDC(bidAmount)
       const nonce = Math.floor(Math.random() * 1e9)
       const signature = await signTypedDataAsync({
         domain: {
@@ -642,115 +543,200 @@ function BidPanel({
       } else {
         toast.success("Sealed bid submitted!")
         setBidHash(res.bidHash || res.hash || signature.slice(0, 18))
-        setAmount("")
+        setBidAmount("")
         onBidSubmitted()
       }
     } catch (e: any) {
       toast.error(`Bid error: ${e.message?.slice(0, 80) || "Unknown error"}`)
     } finally {
-      setSubmitting(false)
+      setSubmittingBid(false)
     }
   }
 
+  // ─── DEPOSITED → Show bid UI ───
+  if (hasDeposited) {
+    return (
+      <GlassCard hover={false}>
+        <GlassCardHeader>
+          <div className="flex items-center gap-2">
+            <div
+              className="w-6 h-6 flex items-center justify-center"
+              style={{ border: '2px solid #0D0D0D', borderRadius: '4px', background: '#C4B5FF' }}
+            >
+              <Lock className="w-3.5 h-3.5" style={{ color: '#0D0D0D' }} />
+            </div>
+            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: 700, color: '#0D0D0D' }}>
+              Place Sealed Bid
+            </h2>
+          </div>
+        </GlassCardHeader>
+        <GlassCardContent>
+          {/* Pool balance badge */}
+          <div
+            className="mb-4 px-4 py-3 flex items-center gap-2"
+            style={{ background: '#A8F0D8', border: '2px solid #0D0D0D', borderRadius: '4px', boxShadow: '2px 2px 0px #0D0D0D' }}
+          >
+            <DollarSign className="w-4 h-4" style={{ color: '#0D0D0D' }} />
+            <div>
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: 700, color: '#0D0D0D' }}>
+                Pool Balance: {formatUSDC(poolBal!)} USDC
+              </p>
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', color: '#3D3D3D' }}>
+                {canBid ? 'Eligible to bid' : 'Deposit below reserve price'}
+              </p>
+            </div>
+          </div>
+
+          {bidHash ? (
+            <div className="space-y-4">
+              <div
+                className="px-4 py-4 text-center"
+                style={{ background: '#A8F0D8', border: '2px solid #0D0D0D', borderRadius: '4px', boxShadow: '2px 2px 0px #0D0D0D' }}
+              >
+                <Shield className="w-6 h-6 mx-auto mb-2" style={{ color: '#0D0D0D' }} />
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: 700, color: '#0D0D0D', marginBottom: '4px' }}>
+                  Sealed Bid Submitted
+                </p>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', color: '#3D3D3D' }}>
+                  Your bid is sealed in the CRE enclave. The winner will be revealed after the auction deadline.
+                </p>
+              </div>
+              <div>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', color: '#3D3D3D', marginBottom: '4px' }}>Bid Hash:</p>
+                <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#0D0D0D', wordBreak: 'break-all', background: 'rgba(230,226,216,0.5)', padding: '8px 10px', borderRadius: '3px', border: '1.5px solid #D4D0C8' }}>
+                  {bidHash}
+                </p>
+              </div>
+              <div
+                className="px-3 py-2 flex items-center gap-2"
+                style={{ background: 'rgba(196,181,255,0.3)', border: '1.5px solid #C4B5FF', borderRadius: '4px' }}
+              >
+                <EyeOff className="w-3.5 h-3.5" style={{ color: '#0D0D0D' }} />
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', color: '#3D3D3D' }}>
+                  Bid amounts stay private until settlement
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', color: '#3D3D3D', marginBottom: '4px', lineHeight: 1.6 }}>
+                Sign an EIP-712 typed message with your bid amount. The amount stays off-chain in the CRE enclave — only the bid count is public.
+              </p>
+              <div>
+                <label className="stat-label" style={{ marginBottom: '8px', display: 'block' }}>Bid Amount (USDC)</label>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={bidAmount}
+                  onChange={(e) => setBidAmount(e.target.value)}
+                  className="nb-input"
+                  style={{ height: '44px' }}
+                />
+              </div>
+
+              <div
+                className="px-3 py-2 flex items-center gap-2"
+                style={{ background: 'rgba(196,181,255,0.3)', border: '1.5px solid #C4B5FF', borderRadius: '4px' }}
+              >
+                <EyeOff className="w-3.5 h-3.5" style={{ color: '#0D0D0D' }} />
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', color: '#3D3D3D' }}>
+                  Your bid amount is private — sealed in CRE enclave
+                </span>
+              </div>
+
+              <button
+                onClick={handleBid}
+                disabled={!address || !bidAmount || submittingBid || !canBid}
+                className="nb-btn w-full"
+                style={{ height: '44px' }}
+              >
+                {submittingBid ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Signing & Submitting...
+                  </span>
+                ) : (
+                  "Place Sealed Bid"
+                )}
+              </button>
+            </div>
+          )}
+        </GlassCardContent>
+      </GlassCard>
+    )
+  }
+
+  // ─── NOT DEPOSITED → Show deposit UI ───
+  // Decide button: approve or deposit
+  const needsApproval = !effectiveAllowance
+
   return (
-    <GlassCard accent="lavender" hover={false}>
+    <GlassCard hover={false}>
       <GlassCardHeader>
         <div className="flex items-center gap-2">
           <div
             className="w-6 h-6 flex items-center justify-center"
-            style={{ border: '2px solid #0D0D0D', borderRadius: '4px', background: '#C4B5FF' }}
+            style={{ border: '2px solid #0D0D0D', borderRadius: '4px', background: '#A8D8FF' }}
           >
-            <Lock className="w-3.5 h-3.5" style={{ color: '#0D0D0D' }} />
+            <DollarSign className="w-3.5 h-3.5" style={{ color: '#0D0D0D' }} />
           </div>
           <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: 700, color: '#0D0D0D' }}>
-            Step 2 — Place Sealed Bid
+            Deposit to Pool
           </h2>
         </div>
       </GlassCardHeader>
       <GlassCardContent>
         <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', color: '#3D3D3D', marginBottom: '16px', lineHeight: 1.6 }}>
-          Sign an EIP-712 typed message with your bid amount. The amount stays off-chain in the CRE enclave — only the bid count is public.
+          Deposit USDC to become eligible to bid. Funds are locked until auction settlement. After depositing, you can place a sealed bid.
         </p>
-
-        {canBid === false && (
-          <div
-            className="mb-4 px-4 py-3 flex items-center gap-2"
-            style={{ background: '#FFB4A0', border: '2px solid #0D0D0D', borderRadius: '4px', boxShadow: '2px 2px 0px #0D0D0D' }}
-          >
-            <EyeOff className="w-4 h-4" style={{ color: '#0D0D0D' }} />
-            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: 600, color: '#0D0D0D' }}>
-              You must deposit to the auction pool first (Step 1)
-            </p>
-          </div>
-        )}
-
-        {canBid === true && !bidHash && (
-          <div
-            className="mb-4 px-4 py-3 flex items-center gap-2"
-            style={{ background: '#A8F0D8', border: '2px solid #0D0D0D', borderRadius: '4px', boxShadow: '2px 2px 0px #0D0D0D' }}
-          >
-            <Shield className="w-4 h-4" style={{ color: '#0D0D0D' }} />
-            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: 600, color: '#0D0D0D' }}>
-              You are eligible to bid
-            </p>
-          </div>
-        )}
-
-        {bidHash && (
-          <div
-            className="mb-4 px-4 py-3"
-            style={{ background: '#A8F0D8', border: '2px solid #0D0D0D', borderRadius: '4px', boxShadow: '2px 2px 0px #0D0D0D' }}
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <Shield className="w-4 h-4" style={{ color: '#0D0D0D' }} />
-              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: 700, color: '#0D0D0D' }}>
-                Sealed bid submitted successfully
-              </p>
-            </div>
-            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', color: '#3D3D3D', marginBottom: '4px' }}>Bid Hash:</p>
-            <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#0D0D0D', wordBreak: 'break-all', background: 'rgba(255,255,255,0.5)', padding: '6px 8px', borderRadius: '3px' }}>
-              {bidHash}
-            </p>
-          </div>
-        )}
 
         <div className="space-y-3">
           <div>
-            <label className="stat-label" style={{ marginBottom: '8px', display: 'block' }}>Bid Amount (USDC)</label>
-            <input
-              type="number"
-              placeholder="0.00"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="nb-input"
+            <label className="stat-label" style={{ marginBottom: '8px', display: 'block' }}>Deposit Amount (USDC)</label>
+            <div className="relative">
+              <input
+                type="number"
+                placeholder="0.00"
+                value={depositAmount}
+                onChange={(e) => { setDepositAmount(e.target.value); setApprovedInSession(false) }}
+                className="nb-input"
+                style={{ paddingRight: '60px', height: '44px' }}
+                disabled={isPending}
+              />
+              <button
+                onClick={() => { if (balances.usdcBalance) setDepositAmount((Number(balances.usdcBalance) / 1e6).toString()) }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 nb-tag"
+                style={{ background: '#C8F135', cursor: 'pointer' }}
+              >
+                MAX
+              </button>
+            </div>
+          </div>
+
+          {balances.usdcBalance !== undefined && (
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', color: '#888880' }}>
+              Wallet: {formatUSDC(balances.usdcBalance)} USDC available
+            </p>
+          )}
+
+          {needsApproval ? (
+            <button
+              onClick={handleApprove}
+              disabled={!address || !depositAmount || isPending}
+              className="nb-btn lime w-full"
               style={{ height: '44px' }}
-            />
-          </div>
-
-          <div
-            className="px-3 py-2 flex items-center gap-2"
-            style={{ background: 'rgba(196,181,255,0.3)', border: '1.5px solid #C4B5FF', borderRadius: '4px' }}
-          >
-            <EyeOff className="w-3.5 h-3.5" style={{ color: '#0D0D0D' }} />
-            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', color: '#3D3D3D' }}>
-              Your bid amount is private — sealed in CRE enclave
-            </span>
-          </div>
-
-          <button
-            onClick={handleBid}
-            disabled={!address || !amount || submitting || canBid === false}
-            className="nb-btn w-full"
-            style={{ height: '44px' }}
-          >
-            {submitting ? (
-              <span className="flex items-center justify-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" /> Signing & Submitting...
-              </span>
-            ) : (
-              "Place Sealed Bid"
-            )}
-          </button>
+            >
+              {isPending ? "Approving..." : "Approve USDC"}
+            </button>
+          ) : (
+            <button
+              onClick={handleDeposit}
+              disabled={!address || !depositAmount || isPending}
+              className="nb-btn lime w-full"
+              style={{ height: '44px' }}
+            >
+              {isPending ? "Depositing..." : "Deposit to Auction Pool"}
+            </button>
+          )}
         </div>
       </GlassCardContent>
     </GlassCard>
