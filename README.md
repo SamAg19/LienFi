@@ -664,6 +664,7 @@ You **must** set these yourself:
 
 | Variable | How to get it |
 |----------|---------------|
+| `CRE_ETH_PRIVATE_KEY` | Sepolia wallet private key used by CRE workflows to sign and submit on-chain transactions |
 | `AES_KEY_ALL` | 32-byte hex AES-GCM encryption key (`openssl rand -hex 32`) |
 | `GROQ_API_KEY_ALL` | From [Groq Console](https://console.groq.com/) |
 | `PLAID_SECRET_ALL` | Same Plaid sandbox secret as demo |

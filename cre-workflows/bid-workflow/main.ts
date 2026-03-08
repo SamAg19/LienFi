@@ -135,6 +135,7 @@ const onBidSubmit = (runtime: Runtime<Config>, payload: HTTPPayload): string => 
 
   const txHash = bytesToHex(writeResult.txHash || new Uint8Array(32))
   runtime.log(`registerBid submitted: ${txHash}`)
+  runtime.log(`Explorer: https://sepolia.etherscan.io/tx/${txHash}`)
   return txHash
 }
 

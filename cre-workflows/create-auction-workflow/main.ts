@@ -263,6 +263,7 @@ const onCronTrigger = (runtime: Runtime<Config>): string => {
 
     const txHash = bytesToHex(writeResult.txHash || new Uint8Array(32))
     runtime.log(`Default processed for loanId=${loanId}: ${txHash}`)
+    runtime.log(`Explorer: https://sepolia.etherscan.io/tx/${txHash}`)
 
     // Only handle one default per cron tick (one auction at a time)
     return txHash
