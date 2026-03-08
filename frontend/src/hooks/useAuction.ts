@@ -17,7 +17,7 @@ export function useActiveAuction() {
     abi: CONTRACTS.LienFiAuction.abi,
     functionName: "auctions",
     args: [activeAuctionId!],
-    query: { enabled: hasAuction },
+    query: { enabled: hasAuction, refetchInterval: 8000 },
   })
 
   const { data: bidCount } = useReadContract({
@@ -25,7 +25,7 @@ export function useActiveAuction() {
     abi: CONTRACTS.LienFiAuction.abi,
     functionName: "getBidCount",
     args: [activeAuctionId!],
-    query: { enabled: hasAuction },
+    query: { enabled: hasAuction, refetchInterval: 8000 },
   })
 
   return {
