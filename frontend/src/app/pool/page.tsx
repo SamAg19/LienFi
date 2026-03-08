@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { useAccount, useWaitForTransactionReceipt } from "wagmi"
+import { useAccount, useWaitForTransactionReceipt, useConfig } from "wagmi"
+import { waitForTransactionReceipt } from "@wagmi/core"
 import { useBlockscoutTx } from "@/hooks/useBlockscoutTx"
 import { usePoolStats } from "@/hooks/usePool"
 import { useTokenBalances } from "@/hooks/useTokenBalances"
@@ -308,8 +309,9 @@ function DepositWithdrawForm({ pool, balances, address }: { pool: ReturnType<typ
   const [mode, setMode] = useState<"deposit" | "withdraw">("deposit")
   const [amount, setAmount] = useState("")
   const [step, setStep] = useState<"idle" | "approving" | "executing">("idle")
-  const { writeContract, data: txHash, isPending } = useBlockscoutTx()
+  const { writeContract, writeContractAsync, data: txHash, isPending } = useBlockscoutTx()
   const { isLoading: confirming } = useWaitForTransactionReceipt({ hash: txHash })
+  const config = useConfig()
 
   const exchangeRate = pool.exchangeRate ? Number(pool.exchangeRate) / 1e18 : 1
 
@@ -317,15 +319,31 @@ function DepositWithdrawForm({ pool, balances, address }: { pool: ReturnType<typ
     if (!address || !amount) return
     const parsedAmount = parseUSDC(amount)
     const allowance = balances.usdcAllowanceLendingPool ?? 0n
-    if (allowance < parsedAmount) {
-      setStep("approving")
-      writeContract({ address: CONTRACTS.MockUSDC.address, abi: CONTRACTS.MockUSDC.abi, functionName: "approve", args: [CONTRACTS.LendingPool.address, parsedAmount] }, {
-        onSuccess: () => { toast.success("USDC approved, now depositing..."); setStep("executing"); writeContract({ address: CONTRACTS.LendingPool.address, abi: CONTRACTS.LendingPool.abi, functionName: "deposit", args: [parsedAmount] }, { onSuccess: () => { toast.success("Deposit successful!"); setAmount(""); setStep("idle"); pool.refetch(); balances.refetch() }, onError: (e) => { toast.error(`Deposit failed: ${e.message.slice(0, 80)}`); setStep("idle") } }) },
-        onError: (e) => { toast.error(`Approval failed: ${e.message.slice(0, 80)}`); setStep("idle") },
-      })
-    } else {
+    try {
+      if (allowance < parsedAmount) {
+        setStep("approving")
+        const approveHash = await writeContractAsync({
+          address: CONTRACTS.MockUSDC.address,
+          abi: CONTRACTS.MockUSDC.abi,
+          functionName: "approve",
+          args: [CONTRACTS.LendingPool.address, parsedAmount],
+        })
+        toast.success("Approval sent, waiting for confirmation...")
+        await waitForTransactionReceipt(config, { hash: approveHash, confirmations: 1 })
+        toast.success("USDC approved! Now depositing...")
+      }
       setStep("executing")
-      writeContract({ address: CONTRACTS.LendingPool.address, abi: CONTRACTS.LendingPool.abi, functionName: "deposit", args: [parsedAmount] }, { onSuccess: () => { toast.success("Deposit successful!"); setAmount(""); setStep("idle"); pool.refetch(); balances.refetch() }, onError: (e) => { toast.error(`Deposit failed: ${e.message.slice(0, 80)}`); setStep("idle") } })
+      writeContract(
+        { address: CONTRACTS.LendingPool.address, abi: CONTRACTS.LendingPool.abi, functionName: "deposit", args: [parsedAmount] },
+        {
+          onSuccess: () => { toast.success("Deposit successful!"); setAmount(""); setStep("idle"); pool.refetch(); balances.refetch() },
+          onError: (e) => { toast.error(`Deposit failed: ${e.message.slice(0, 80)}`); setStep("idle") },
+        }
+      )
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message.slice(0, 80) : "Unknown error"
+      toast.error(`Failed: ${msg}`)
+      setStep("idle")
     }
   }
 

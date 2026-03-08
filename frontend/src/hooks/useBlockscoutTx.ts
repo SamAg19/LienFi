@@ -76,5 +76,17 @@ export function useBlockscoutTx() {
     return originalWriteContract({ ...variables, chainId: CHAIN_ID }, options)
   }
 
-  return { ...result, writeContract }
+  // Also wrap writeContractAsync for promise-based two-step flows (approve → deposit)
+  const originalWriteContractAsync = result.writeContractAsync
+  const writeContractAsync: typeof originalWriteContractAsync = (variables, options) => {
+    const addr = (variables.address || "").toLowerCase()
+    lastCallRef.current = {
+      functionName: (variables.functionName as string) || "unknown",
+      contractName: CONTRACT_NAMES[addr] || "Contract",
+    }
+    // @ts-expect-error — wagmi's complex union types don't support spread + chainId injection
+    return originalWriteContractAsync({ ...variables, chainId: CHAIN_ID }, options)
+  }
+
+  return { ...result, writeContract, writeContractAsync }
 }

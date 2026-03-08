@@ -14,6 +14,7 @@ import {
   Check,
   Play,
   Square,
+  ExternalLink,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -243,17 +244,114 @@ function WorkflowPanel({ workflow }: { workflow: (typeof WORKFLOWS)[number] }) {
                 {watching ? "Waiting for CRE output..." : "Run the CLI command above, then click Watch to see live output here."}
               </p>
             ) : (
-              lines.map((line, i) => (
+              lines.filter((l) => !l.startsWith("REPORT_TX:")).map((line, i) => (
                 <div key={i} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: lineColor(line), lineHeight: 1.7 }}>
-                  {line}
+                  <LinkifyTxHash text={line} />
                 </div>
               ))
             )}
           </div>
         </div>
+
+        {/* Forwarder Transactions — only MockKeystoneForwarder report tx hashes */}
+        {(() => {
+          const txHashes = extractReportTxHashes(lines)
+          if (txHashes.length === 0) return null
+          return (
+            <div style={{ marginTop: 16 }}>
+              <p className="stat-label" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <ExternalLink className="w-3 h-3" />
+                Forwarder Transactions
+              </p>
+              <div className="space-y-2">
+                {txHashes.map((hash) => (
+                  <div
+                    key={hash}
+                    className="flex items-center justify-between gap-2 px-3 py-2"
+                    style={{
+                      background: '#FAFAF7',
+                      border: '2px solid #0D0D0D',
+                      borderRadius: 4,
+                      boxShadow: '2px 2px 0px #0D0D0D',
+                    }}
+                  >
+                    <code style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#3D3D3D' }}>
+                      {hash.slice(0, 18)}...{hash.slice(-8)}
+                    </code>
+                    <a
+                      href={`${BLOCKSCOUT_BASE}${hash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="nb-btn ghost"
+                      style={{ padding: '4px 10px', fontSize: 10, boxShadow: '2px 2px 0px #0D0D0D', display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      Blockscout
+                    </a>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
       </GlassCardContent>
     </GlassCard>
   )
+}
+
+const BLOCKSCOUT_BASE = "https://eth-sepolia.blockscout.com/tx/"
+const TX_HASH_REGEX = /\b(0x[a-fA-F0-9]{64})\b/g
+
+function LinkifyTxHash({ text }: { text: string }) {
+  const parts: React.ReactNode[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+  const regex = new RegExp(TX_HASH_REGEX.source, 'g')
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index))
+    }
+    const hash = match[1]
+    parts.push(
+      <a
+        key={match.index}
+        href={`${BLOCKSCOUT_BASE}${hash}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          color: '#A8D8FF',
+          textDecoration: 'underline',
+          textUnderlineOffset: '2px',
+          cursor: 'pointer',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {hash.slice(0, 10)}...{hash.slice(-6)}
+        <ExternalLink className="w-2.5 h-2.5 inline-block ml-1" style={{ verticalAlign: 'middle' }} />
+      </a>
+    )
+    lastIndex = regex.lastIndex
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex))
+  }
+
+  return parts.length > 0 ? <>{parts}</> : <>{text}</>
+}
+
+/** Extract only MockKeystoneForwarder report tx hashes (tagged by CRE wrapper scripts) */
+function extractReportTxHashes(lines: string[]): string[] {
+  const hashes: string[] = []
+  for (const line of lines) {
+    if (!line.startsWith("REPORT_TX:")) continue
+    const hash = line.slice("REPORT_TX:".length).trim()
+    if (/^0x[a-fA-F0-9]{64}$/.test(hash) && !hashes.includes(hash)) {
+      hashes.push(hash)
+    }
+  }
+  return hashes
 }
 
 function lineColor(line: string): string {

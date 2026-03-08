@@ -30,6 +30,10 @@ post_line "  evm-tx-hash: $EVM_TX_HASH"
 post_line "  requestHash: $REQUEST_HASH"
 post_line "---"
 
+# Capture CRE output so we can extract the forwarder broadcast tx hash after
+TMPOUT=$(mktemp /tmp/cre-output-XXXXXX.txt)
+trap 'rm -f "$TMPOUT"' EXIT
+
 # Run the CRE simulation and tee output to both terminal and API
 cre workflow simulate "$WORKFLOW_DIR" \
   --target staging-settings \
@@ -39,7 +43,7 @@ cre workflow simulate "$WORKFLOW_DIR" \
   --verbose \
   --evm-tx-hash "$EVM_TX_HASH" \
   --evm-event-index 0 \
-  "$@" 2>&1 | while IFS= read -r line; do
+  "$@" 2>&1 | tee "$TMPOUT" | while IFS= read -r line; do
     # Print to local terminal as usual
     echo "$line"
     # Strip ANSI escape codes and forward to API
@@ -50,6 +54,11 @@ done
 EXIT_CODE=${PIPESTATUS[0]}
 
 if [ "$EXIT_CODE" -eq 0 ]; then
+  # Extract forwarder broadcast tx hash — the last 0x{64} hash in CRE output
+  REPORT_TX=$(sed 's/\x1b\[[0-9;]*m//g' "$TMPOUT" | grep -oE '0x[a-fA-F0-9]{64}' | tail -1)
+  if [ -n "$REPORT_TX" ]; then
+    post_line "REPORT_TX:$REPORT_TX"
+  fi
   post_line "---"
   post_line "✓ CRE simulation completed successfully"
 else

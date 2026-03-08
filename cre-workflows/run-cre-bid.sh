@@ -59,6 +59,9 @@ while true; do
   post_line "---"
   post_line "▶ Processing bid #$BID_NUM (bidder=${BIDDER:0:14}... auction=${AUCTION}...)"
 
+  # Capture CRE output so we can extract the forwarder broadcast tx hash after
+  TMPOUT=$(mktemp /tmp/cre-output-XXXXXX.txt)
+
   # Run CRE bid workflow simulation with the fetched payload
   cre workflow simulate ./bid-workflow \
     --target staging-settings \
@@ -67,7 +70,7 @@ while true; do
     --http-payload "@$TMPFILE" \
     --broadcast \
     --verbose \
-    2>&1 | while IFS= read -r line; do
+    2>&1 | tee "$TMPOUT" | while IFS= read -r line; do
       echo "$line"
       clean=$(echo "$line" | sed 's/\x1b\[[0-9;]*m//g')
       post_line "$clean"
@@ -76,12 +79,19 @@ while true; do
   EXIT_CODE=${PIPESTATUS[0]}
 
   if [ "$EXIT_CODE" -eq 0 ]; then
+    # Extract forwarder broadcast tx hash — the last 0x{64} hash in CRE output
+    REPORT_TX=$(sed 's/\x1b\[[0-9;]*m//g' "$TMPOUT" | grep -oE '0x[a-fA-F0-9]{64}' | tail -1 2>/dev/null || true)
+    if [ -n "$REPORT_TX" ]; then
+      post_line "REPORT_TX:$REPORT_TX"
+    fi
     post_line "✓ Bid #$BID_NUM registered on-chain"
   else
     post_line "✗ Bid #$BID_NUM failed (exit code: $EXIT_CODE)"
     echo "Bid #$BID_NUM failed (exit code: $EXIT_CODE), stopping."
+    rm -f "$TMPOUT" 2>/dev/null || true
     exit "$EXIT_CODE"
   fi
+  rm -f "$TMPOUT" 2>/dev/null || true
 done
 
 post_line "---"

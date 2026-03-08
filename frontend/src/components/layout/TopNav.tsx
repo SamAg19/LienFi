@@ -110,8 +110,7 @@ export function TopNav() {
               className="nb-tag"
               style={{ background: '#A8F0D8' }}
             >
-              <span className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full inline-block anim-dot" style={{ background: '#0D0D0D' }} />
+              <span className="flex items-center gap-1.5 py-1">
                 Sepolia
               </span>
             </div>

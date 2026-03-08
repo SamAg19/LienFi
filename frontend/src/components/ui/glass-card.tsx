@@ -10,13 +10,13 @@ interface NbCardProps {
 }
 
 const accentBg: Record<string, string> = {
-  lime: "#C8F135",
-  peach: "#FFB4A0",
-  sky: "#A8D8FF",
-  lavender: "#C4B5FF",
-  gold: "#FFD97D",
-  mint: "#A8F0D8",
-  coral: "#FF8A80",
+  lime: "#EEF5D8",
+  peach: "#F5E0DA",
+  sky: "#D8ECFA",
+  lavender: "#E4DDF5",
+  gold: "#F5EDD6",
+  mint: "#D8F0E6",
+  coral: "#F5D6D2",
 }
 
 export function GlassCard({ children, className, hover = true, accent }: NbCardProps) {

@@ -39,7 +39,7 @@ export default function DashboardPage() {
       {/* Stats row — 4 colored cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Total Pool TVL" value={`$${fmt(tvl, 2)}`} icon={<DollarSign className="w-4 h-4" style={{ color: '#0D0D0D' }} />} loading={isLoading} accent="lime" />
-        <StatCard label="Exchange Rate" value={fmt(rate, 4)} icon={<TrendingUp className="w-4 h-4" style={{ color: '#0D0D0D' }} />} loading={isLoading} accent="peach" />
+        <StatCard label="Exchange Rate" value={fmt(rate, 2)} icon={<TrendingUp className="w-4 h-4" style={{ color: '#0D0D0D' }} />} loading={isLoading} accent="peach" />
         <StatCard label="Available Liquidity" value={`$${fmt(available, 2)}`} icon={<Layers className="w-4 h-4" style={{ color: '#0D0D0D' }} />} loading={isLoading} accent="sky" />
         <StatCard label="Active Auctions" value={activeAuctionId ? "1" : "0"} icon={<Activity className="w-4 h-4" style={{ color: '#0D0D0D' }} />} loading={isLoading} accent="lavender" />
       </div>
@@ -107,7 +107,7 @@ export default function DashboardPage() {
             <div className="flex gap-3 shrink-0 mb-1">
               {[
                 { label: 'TVL', value: `$${fmt(tvl, 0)}`, bg: '#E8F0D8' },
-                { label: 'Rate', value: fmt(rate, 4), bg: '#D8ECFA' },
+                { label: 'Rate', value: fmt(rate, 2), bg: '#D8ECFA' },
                 { label: 'Auctions', value: activeAuctionId ? '1' : '0', bg: '#E4DDF5' },
               ].map((s) => (
                 <div
@@ -186,7 +186,7 @@ export default function DashboardPage() {
                 </div>
                 <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '13px', fontWeight: 700, color: '#0D0D0D' }}>Exchange Rate</h2>
               </div>
-              <span className="stat-number" style={{ fontSize: '20px' }}>{rate.toFixed(4)}</span>
+              <span className="stat-number" style={{ fontSize: '20px' }}>{rate.toFixed(2)}</span>
             </GlassCardHeader>
             <GlassCardContent className="pb-2">
               {isLoading ? (
