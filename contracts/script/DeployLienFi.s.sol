@@ -2,14 +2,12 @@
 pragma solidity ^0.8.24;
 
 import {Script, console} from "forge-std/Script.sol";
-import {MockWorldIDRouter} from "../src/mocks/MockWorldIDRouter.sol";
 import {MockUSDC} from "../src/mocks/MockUSDC.sol";
 import {PropertyNFT} from "../src/PropertyNFT.sol";
 import {clUSDC} from "../src/clUSDC.sol";
 import {LendingPool} from "../src/LendingPool.sol";
 import {LienFiAuction} from "../src/LienFiAuction.sol";
 import {LoanManager} from "../src/LoanManager.sol";
-import {IWorldID} from "../src/interfaces/IWorldID.sol";
 
 /**
  * @title DeployLienFi
@@ -18,13 +16,12 @@ import {IWorldID} from "../src/interfaces/IWorldID.sol";
  * Deploys the complete LienFi protocol to Sepolia with mock dependencies.
  *
  * Deployment order (respects constructor dependencies):
- *   1. MockWorldIDRouter  — no deps
- *   2. MockUSDC           — no deps
- *   3. PropertyNFT        — no deps
- *   4. clUSDC             — no deps
- *   5. LendingPool        — needs: MockUSDC, clUSDC
- *   6. LienFiAuction      — needs: forwarder, MockUSDC, PropertyNFT, WorldID
- *   7. LoanManager        — needs: forwarder, LendingPool, PropertyNFT, LienFiAuction, MockUSDC
+ *   1. MockUSDC           — no deps
+ *   2. PropertyNFT        — no deps
+ *   3. clUSDC             — no deps
+ *   4. LendingPool        — needs: MockUSDC, clUSDC
+ *   5. LienFiAuction      — needs: forwarder, MockUSDC, PropertyNFT
+ *   6. LoanManager        — needs: forwarder, LendingPool, PropertyNFT, LienFiAuction, MockUSDC
  *
  * Post-deploy wiring:
  *   - clUSDC.setMinter(LendingPool)              → only pool can mint/burn receipt tokens
@@ -33,7 +30,6 @@ import {IWorldID} from "../src/interfaces/IWorldID.sol";
  *
  * Required .env:
  *   PRIVATE_KEY=0x...
- *   WORLD_ID_APP_ID=app_staging_test   (any string for MockWorldIDRouter)
  *
  * Optional .env:
  *   CHAINLINK_FORWARDER_ADDRESS=0x...  (defaults to deployer if not set)
@@ -47,7 +43,6 @@ import {IWorldID} from "../src/interfaces/IWorldID.sol";
     function run()
         external
         returns (
-            MockWorldIDRouter,
             MockUSDC,
             PropertyNFT,
             clUSDC,
@@ -57,7 +52,6 @@ import {IWorldID} from "../src/interfaces/IWorldID.sol";
         )
     {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
-        string memory appId = vm.envString("WORLD_ID_APP_ID");
         address deployer = vm.addr(deployerKey);
         address forwarderAddress = vm.envOr("CHAINLINK_FORWARDER_ADDRESS", deployer);
         uint256 interestRateBps = vm.envOr("INTEREST_RATE_BPS", uint256(800));
@@ -66,7 +60,6 @@ import {IWorldID} from "../src/interfaces/IWorldID.sol";
         console.log("Deployer:", deployer);
         console.log("Forwarder:", forwarderAddress);
         console.log("Interest Rate (bps):", interestRateBps);
-        console.log("World ID App ID:", appId);
 
         vm.startBroadcast(deployerKey);
 
@@ -74,21 +67,18 @@ import {IWorldID} from "../src/interfaces/IWorldID.sol";
         // STEP 1: MOCKS — no dependencies
         // ═══════════════════════════════════════
 
-        MockWorldIDRouter mockWorldId = new MockWorldIDRouter();
-        console.log("\n[1/7] MockWorldIDRouter:", address(mockWorldId));
-
         MockUSDC mockUsdc = new MockUSDC();
-        console.log("[2/7] MockUSDC:", address(mockUsdc));
+        console.log("\n[1/6] MockUSDC:", address(mockUsdc));
 
         // ═══════════════════════════════════════
         // STEP 2: STANDALONE CONTRACTS — no dependencies
         // ═══════════════════════════════════════
 
         PropertyNFT propertyNFT = new PropertyNFT();
-        console.log("[3/7] PropertyNFT:", address(propertyNFT));
+        console.log("[2/6] PropertyNFT:", address(propertyNFT));
 
         clUSDC receiptToken = new clUSDC();
-        console.log("[4/7] clUSDC:", address(receiptToken));
+        console.log("[3/6] clUSDC:", address(receiptToken));
 
         // ═══════════════════════════════════════
         // STEP 3: LENDING POOL — needs MockUSDC + clUSDC
@@ -98,21 +88,18 @@ import {IWorldID} from "../src/interfaces/IWorldID.sol";
             address(mockUsdc),
             address(receiptToken)
         );
-        console.log("[5/7] LendingPool:", address(lendingPool));
+        console.log("[4/6] LendingPool:", address(lendingPool));
 
         // ═══════════════════════════════════════
-        // STEP 4: LIENFI AUCTION — needs forwarder, MockUSDC, PropertyNFT, WorldID
+        // STEP 4: LIENFI AUCTION — needs forwarder, MockUSDC, PropertyNFT
         // ═══════════════════════════════════════
 
         LienFiAuction lienFiAuction = new LienFiAuction(
             forwarderAddress,
             address(mockUsdc),
-            address(propertyNFT),
-            IWorldID(address(mockWorldId)),
-            appId,
-            "deposit_to_pool"
+            address(propertyNFT)
         );
-        console.log("[6/7] LienFiAuction:", address(lienFiAuction));
+        console.log("[5/6] LienFiAuction:", address(lienFiAuction));
 
         // ═══════════════════════════════════════
         // STEP 5: LOAN MANAGER — needs everything above
@@ -126,7 +113,7 @@ import {IWorldID} from "../src/interfaces/IWorldID.sol";
             address(mockUsdc),
             interestRateBps
         );
-        console.log("[7/7] LoanManager:", address(loanManager));
+        console.log("[6/6] LoanManager:", address(loanManager));
 
         // ═══════════════════════════════════════
         // STEP 6: POST-DEPLOY WIRING
@@ -153,7 +140,6 @@ import {IWorldID} from "../src/interfaces/IWorldID.sol";
         // ═══════════════════════════════════════
 
         console.log("\n=== Deployment Summary ===");
-        console.log("MOCK_WORLD_ID_ADDRESS=%s", address(mockWorldId));
         console.log("MOCK_USDC_ADDRESS=%s", address(mockUsdc));
         console.log("PROPERTY_NFT_ADDRESS=%s", address(propertyNFT));
         console.log("CL_USDC_ADDRESS=%s", address(receiptToken));
@@ -165,7 +151,6 @@ import {IWorldID} from "../src/interfaces/IWorldID.sol";
         console.log("==========================\n");
 
         return (
-            mockWorldId,
             mockUsdc,
             propertyNFT,
             receiptToken,
