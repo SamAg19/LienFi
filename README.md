@@ -313,8 +313,6 @@ LienFi is a complete mortgage primitive with no step requiring a bank, appraiser
 
 ## Smart Contracts
 
-### Existing (Auction Engine — Deployed on Sepolia)
-
 | Contract | Purpose |
 |----------|---------|
 | **LienFiAuction.sol** | Core auction + deposit pool + World ID sybil resistance + opaque bid hash storage + Vickrey settlement via CRE |
@@ -322,11 +320,6 @@ LienFi is a complete mortgage primitive with no step requiring a bank, appraiser
 | **MockWorldIDRouter.sol** | Always-passing World ID mock for testing |
 | **MockUSDC.sol** | Test USDC token (6 decimals) with public mint |
 | **ReceiverTemplate.sol** | Abstract base for receiving Keystone CRE DON-signed reports |
-
-### New (Lending System — In Development)
-
-| Contract | Purpose |
-|----------|---------|
 | **LoanManager.sol** | Full mortgage lifecycle — request anchoring, CRE verdict receiver, loan origination, repayment tracking, default triggering, auction settlement callback |
 | **LendingPool.sol** | USDC pool — lender deposits, loan disbursement, EMI collection. Access-controlled by LoanManager |
 | **clUSDC.sol** | ERC-20 receipt token. Minted on deposit, burned on withdrawal. Exchange rate appreciates as pool USDC grows |
@@ -348,15 +341,17 @@ LienFi is a complete mortgage primitive with no step requiring a bank, appraiser
 
 ## Chainlink Services Used
 
-| Service | Usage | Where |
+| Service | Usage | Files |
 |---------|-------|-------|
-| **CRE Workflow Engine** | 5 workflows orchestrating the entire system — mint, bid, settle, credit assessment, listing generation | All phases |
-| **Confidential HTTP** | Plaid API calls (bank data), Gemini API calls (AI scoring), bid submission, settlement — all inside enclave | Credit assessment, auction |
-| **Vault DON Secrets** | API keys (Plaid, Gemini, bid API) and AES encryption keys stored securely, decrypted only in enclave | All workflows |
-| **Encrypted Output** | AES-GCM encryption of settlement results and credit verdicts before leaving enclave | Settlement, credit |
-| **Log-Based Trigger** | `LoanRequestSubmitted` event auto-triggers credit assessment workflow — no HTTP trigger needed | Credit assessment |
-| **Cron Trigger** | Settlement workflow runs every 30 seconds, checking for expired auctions to settle | Auction settlement |
-| **EVM Read/Write** | On-chain state reads (auction status, pool balances) and DON-signed report submission via KeystoneForwarder | All workflows |
+| **CRE Workflow Engine** | 4 workflows orchestrating the entire system — credit assessment, bid collection, auction creation, Vickrey settlement | [`bid-workflow/main.ts`](cre-workflows/bid-workflow/main.ts) · [`create-auction-workflow/main.ts`](cre-workflows/create-auction-workflow/main.ts) · [`credit-assessment-workflow/main.ts`](cre-workflows/credit-assessment-workflow/main.ts) · [`settlement-workflow/main.ts`](cre-workflows/settlement-workflow/main.ts) |
+| **Confidential HTTP** | Plaid bank data fetch and Groq AI scoring inside the enclave — raw data never leaves | [`credit-assessment-workflow/main.ts`](cre-workflows/credit-assessment-workflow/main.ts) |
+| **Vault DON Secrets** | API keys (Plaid, Groq, bid API) and AES encryption key stored securely, decrypted only inside enclave | [`cre-workflows/.env.example`](cre-workflows/.env.example) · [`secrets.yaml`](cre-workflows/secrets.yaml) |
+| **Encrypted Output** | AES-GCM encryption of settlement results and credit verdicts before leaving enclave | [`settlement-workflow/main.ts`](cre-workflows/settlement-workflow/main.ts) · [`credit-assessment-workflow/main.ts`](cre-workflows/credit-assessment-workflow/main.ts) |
+| **Log-Based Trigger** | `LoanRequestSubmitted` event auto-triggers credit assessment — no manual step | [`credit-assessment-workflow/workflow.yaml`](cre-workflows/credit-assessment-workflow/workflow.yaml) · [`LoanManager.sol`](contracts/src/LoanManager.sol) |
+| **Cron Trigger** | Settlement workflow polls every 30 seconds for expired auctions | [`settlement-workflow/workflow.yaml`](cre-workflows/settlement-workflow/workflow.yaml) · [`create-auction-workflow/workflow.yaml`](cre-workflows/create-auction-workflow/workflow.yaml) |
+| **EVM Read** | On-chain state reads (loan status, auction data, pool balances) inside workflows | [`bid-workflow/main.ts`](cre-workflows/bid-workflow/main.ts) · [`settlement-workflow/main.ts`](cre-workflows/settlement-workflow/main.ts) · [`create-auction-workflow/main.ts`](cre-workflows/create-auction-workflow/main.ts) |
+| **EVM Write (KeystoneForwarder)** | DON-signed report submission delivering credit verdicts, bid hashes, and settlement results on-chain | [`LoanManager.sol`](contracts/src/LoanManager.sol) · [`LienFiAuction.sol`](contracts/src/LienFiAuction.sol) · [`ReceiverTemplate.sol`](contracts/src/ReceiverTemplate.sol) · [`IReceiver.sol`](contracts/src/interfaces/IReceiver.sol) |
+| **CRE Project Config** | RPC endpoints and staging/production target settings | [`project.yaml`](cre-workflows/project.yaml) · [`bid-workflow/config.staging.json`](cre-workflows/bid-workflow/config.staging.json) · [`credit-assessment-workflow/config.staging.json`](cre-workflows/credit-assessment-workflow/config.staging.json) · [`create-auction-workflow/config.staging.json`](cre-workflows/create-auction-workflow/config.staging.json) · [`settlement-workflow/config.staging.json`](cre-workflows/settlement-workflow/config.staging.json) |
 
 ---
 
@@ -382,77 +377,127 @@ LienFi is a complete mortgage primitive with no step requiring a bank, appraiser
 ### Prerequisites
 
 - [Foundry](https://book.getfoundry.sh/getting-started/installation) (`foundryup`)
-- [CRE CLI](https://docs.chain.link/cre/getting-started/cli-installation)
-- Node.js 20+
+- [CRE CLI](https://docs.chain.link/cre/getting-started/cli-installation) + authenticated (`cre auth login`)
+- Node.js 20+ and Bun
 - Sepolia ETH for gas
+- [Plaid](https://dashboard.plaid.com/) sandbox credentials
+- [Groq](https://console.groq.com/) API key (used by credit assessment workflow)
 
-### Installation
+### 1. Clone
 
 ```bash
-# Clone the repository
 git clone https://github.com/yourusername/lienfi.git
 cd lienfi
+```
 
-# --- Smart Contracts ---
+### 2. Smart Contracts
+
+Contracts are already deployed — see [Deployed Contracts](#deployed-contracts-sepolia) above. Only needed if redeploying:
+
+```bash
 cd contracts
 forge install
-cp .env.example .env
-# Edit .env: add PRIVATE_KEY, SEPOLIA_RPC_URL, WORLD_ID_APP_ID
+# Edit foundry.toml or set env vars: PRIVATE_KEY, SEPOLIA_RPC_URL
 
-source .env
 forge script script/DeployLienFi.s.sol:DeployLienFi \
   --rpc-url "$SEPOLIA_RPC_URL" --broadcast
+```
 
-# Note the deployed addresses from the output
+### 3. Private API
 
-# --- Private API ---
-cd ../api
+```bash
+cd api
 npm install
 cp .env.example .env
-# Edit .env: add BID_API_KEY, VERIFYING_CONTRACT, RPC_URL
+```
 
-npm run dev
+Edit `api/.env`:
+
+```env
+PORT=3001
+BID_API_KEY=<openssl rand -hex 32>
+VERIFYING_CONTRACT=0x<LienFiAuction-address>
+USDC_ADDRESS=0x<MockUSDC-address>
+CHAIN_ID=11155111
+RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
+MONGODB_URI=<mongodb connection string>
+```
+
+```bash
+npm run dev     # dev server with hot reload (tsx watch)
+npm run build   # compile to dist/
+npm start       # run compiled build
 # API running at http://localhost:3001
+```
 
-# --- CRE Workflows ---
-cd ../cre-workflows/bid-workflow
-bun install
+### 4. CRE Workflows
 
-# Simulate bid workflow
-cd ..
+```bash
+cd cre-workflows
+cp .env.example .env
+```
+
+Edit `cre-workflows/.env`:
+
+```env
+CRE_ETH_PRIVATE_KEY=0x<your-sepolia-private-key>
+CRE_TARGET=staging-settings
+MY_API_KEY_ALL=<same as BID_API_KEY above>
+AES_KEY_ALL=<openssl rand -hex 32>
+GROQ_API_KEY_ALL=<from console.groq.com>
+PLAID_SECRET_ALL=<plaid sandbox secret>
+PLAID_CLIENT_ID_ALL=<plaid client id>
+```
+
+Install dependencies in each workflow:
+
+```bash
+cd bid-workflow && bun install && cd ..
+cd create-auction-workflow && bun install && cd ..
+cd credit-assessment-workflow && bun install && cd ..
+cd settlement-workflow && bun install && cd ..
+```
+
+Simulate a workflow locally (example: bid):
+
+```bash
 cre workflow simulate ./bid-workflow \
   --target staging-settings \
   --http-payload @bid-payload.json \
   --non-interactive --trigger-index 0
 ```
 
-### Environment Variables
+### 5. Frontend
+
+```bash
+cd frontend
+npm install
+```
+
+Create `frontend/.env.local`:
 
 ```env
-# --- Deployer ---
-PRIVATE_KEY=0x...
-SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
+NEXT_PUBLIC_PRIVY_APP_ID=<from privy.io dashboard>
+NEXT_PUBLIC_ALCHEMY_API_KEY=<from alchemy.com>
+NEXT_PUBLIC_PLAID_ACCESS_TOKEN=<plaid sandbox access token>
+```
 
-# --- World ID ---
-WORLD_ID_APP_ID=app_staging_...
+```bash
+npm run dev     # http://localhost:3000
+npm run build   # production build
+```
 
-# --- API Secrets ---
-BID_API_KEY=...          # openssl rand -hex 32
+### 6. Demo Script
 
-# --- Credit Assessment (new) ---
-PLAID_CLIENT_ID=...
-PLAID_SECRET=...
-PLAID_ENV=sandbox
-GEMINI_API_KEY=...
-INTEREST_RATE_BPS=800    # 8% annual
+```bash
+cd demo
+npm install
+cp .env.example .env
+# Edit demo/.env — see Running the Demo section below
 
-# --- Deployed Contracts (populated after deployment) ---
-LIENFI_AUCTION=0x...
-LENDING_POOL=0x...
-LOAN_MANAGER=0x...
-PROPERTY_NFT=0x...
-MOCK_USDC=0x...
-CL_USDC=0x...
+npm run demo          # run all phases A → F3
+npm run demo:fresh    # clear checkpoint and start over
+npm run demo:from -- e  # resume from a specific phase
 ```
 
 ---
@@ -479,18 +524,75 @@ CL_USDC=0x...
 
 ## What's Already Built
 
-The sealed-bid auction engine is fully implemented and tested on Sepolia:
+The full LienFi system is implemented and deployed on Sepolia across two environments (frontend + demo script):
 
-| Component | Status |
-|-----------|--------|
-| `LienFiAuction.sol` — deposit pool, World ID, opaque bid hashes, Vickrey settlement | Deployed |
-| `LienFiRWAToken.sol` — ERC-20 RWA token (will be replaced by ERC-721 PropertyNFT) | Deployed |
-| CRE bid-workflow — HTTP-triggered sealed bid collection via Confidential HTTP | Deployed |
-| CRE settlement-workflow — cron-triggered Vickrey settlement | Deployed |
-| CRE mint-workflow — HTTP-triggered RWA token minting | Deployed |
-| Private API — `/bid`, `/settle`, `/status` with EIP-712 + Vickrey logic | Deployed (Render) |
+**Smart Contracts**
 
-**Everything lending-related is new.** The ERC-20 property token becomes an ERC-721.
+| Contract | Description | Status |
+|----------|-------------|--------|
+| `LienFiAuction.sol` | Deposit pool, World ID sybil resistance, opaque bid hashes, Vickrey settlement | Deployed |
+| `LoanManager.sol` | Full mortgage lifecycle — loan origination, CRE verdict receiver, repayment tracking, default triggering, auction settlement callback | Deployed |
+| `LendingPool.sol` | USDC pool — lender deposits, loan disbursement, EMI collection | Deployed |
+| `clUSDC.sol` | Receipt token with appreciating exchange rate (Compound cToken model) | Deployed |
+| `PropertyNFT.sol` | ERC-721 — commitment hash only, no on-chain metadata | Deployed |
+| `MockUSDC.sol` | 6-decimal test USDC with public mint | Deployed |
+
+**CRE Workflows**
+
+| Workflow | Trigger | Description | Status |
+|----------|---------|-------------|--------|
+| `credit-assessment-workflow` | Log (`LoanRequestSubmitted`) | Plaid bank data fetch → metric extraction → Gemini AI scoring → on-chain verdict | Deployed |
+| `create-auction-workflow` | HTTP | Default detection, sanitized listing generation, auction creation on-chain | Deployed |
+| `bid-workflow` | HTTP | EIP-712 bid validation, encrypted bid storage in enclave, opaque hash on-chain | Deployed |
+| `settlement-workflow` | Cron (30s) | Vickrey settlement after auction deadline — winner + second-price on-chain | Deployed |
+
+**Private API** (Render)
+
+| Endpoint | Description | Status |
+|----------|-------------|--------|
+| `POST /loanRequest` | Store loan request details, return `requestHash` | Live |
+| `POST /verify-property` | Property verification, compute + store `commitmentHash` | Live |
+| `POST /bid` | EIP-712 validation + encrypted bid storage | Live |
+| `GET /listing/:auctionId` | Sanitized auction listing (no address, no owner) | Live |
+| `POST /reveal/:auctionId` | Winner-only full property address reveal | Live |
+| `POST /settle` | Trigger Vickrey settlement | Live |
+| `GET /status/:auctionId` | Auction status and bid count | Live |
+
+**Frontend** — Next.js dashboard with Privy wallet auth, pool deposit/withdraw, borrow flow, live auction view, and CRE workflow log viewer. Deployed on Vercel.
+
+**Demo Script** — Single-command `tsx` orchestrator that runs the full A→F3 lifecycle end-to-end on Sepolia with checkpoint/resume support.
+
+---
+
+## Deployed Contracts (Sepolia)
+
+The system has two separate deployments — one for the frontend demo with longer time windows for realistic UX, and one for the end-to-end demo script with compressed timings for fast iteration.
+
+### Frontend Deployment
+
+> EMI period: **2 minutes** · Auction duration: **10 minutes**
+
+| Contract | Address |
+|----------|---------|
+| MockUSDC | [`0x3Ef3f81b24ACB7334C75EAA38a2C132c8eA74656`](https://sepolia.etherscan.io/address/0x3Ef3f81b24ACB7334C75EAA38a2C132c8eA74656) |
+| clUSDC | [`0x40Eb4B08D1Bf9b9dbF0CD5C1825f9507c7484F9E`](https://sepolia.etherscan.io/address/0x40Eb4B08D1Bf9b9dbF0CD5C1825f9507c7484F9E) |
+| LendingPool | [`0xa2E797b58489B849c8A47413197BC1db2EeEBbD4`](https://sepolia.etherscan.io/address/0xa2E797b58489B849c8A47413197BC1db2EeEBbD4) |
+| LoanManager | [`0x901e8969F1368A58dbBa84813147e086E2B006DD`](https://sepolia.etherscan.io/address/0x901e8969F1368A58dbBa84813147e086E2B006DD) |
+| PropertyNFT | [`0x10e39BcF7c1148FA62d90D40cCFc40D1Bf9F0F35`](https://sepolia.etherscan.io/address/0x10e39BcF7c1148FA62d90D40cCFc40D1Bf9F0F35) |
+| LienFiAuction | [`0x5f69cbcf902Fd3F01dFD6F297b94C7D779a7544E`](https://sepolia.etherscan.io/address/0x5f69cbcf902Fd3F01dFD6F297b94C7D779a7544E) |
+
+### Demo Script Deployment
+
+> EMI period: **1 minute** · Auction duration: **5 minutes**
+
+| Contract | Address |
+|----------|---------|
+| MockUSDC | [`0xFa5B0cF5301C6263Df3F39624984BC9aE918faA3`](https://sepolia.etherscan.io/address/0xFa5B0cF5301C6263Df3F39624984BC9aE918faA3) |
+| clUSDC | [`0x9eCf84eC8EB63BCFD9DD3B487D6935d9Cc319019`](https://sepolia.etherscan.io/address/0x9eCf84eC8EB63BCFD9DD3B487D6935d9Cc319019) |
+| LendingPool | [`0x87BcBc638d700bb91b36B8607cB4d22dcD4c8A61`](https://sepolia.etherscan.io/address/0x87BcBc638d700bb91b36B8607cB4d22dcD4c8A61) |
+| LoanManager | [`0x11B0a5D5B1A922a46C17C21Fb4cb6A8559C3076F`](https://sepolia.etherscan.io/address/0x11B0a5D5B1A922a46C17C21Fb4cb6A8559C3076F) |
+| PropertyNFT | [`0x30D49451E729756627A085a9ee0bc2A0eE2F2806`](https://sepolia.etherscan.io/address/0x30D49451E729756627A085a9ee0bc2A0eE2F2806) |
+| LienFiAuction | [`0xffE7cE1f9C1624c6419FDd9E9d3A57d95E36DAa6`](https://sepolia.etherscan.io/address/0xffE7cE1f9C1624c6419FDd9E9d3A57d95E36DAa6) |
 
 ---
 
@@ -500,52 +602,96 @@ The sealed-bid auction engine is fully implemented and tested on Sepolia:
 lienfi/
 ├── contracts/                           # Solidity smart contracts (Foundry)
 │   ├── src/
-│   │   ├── LienFiAuction.sol           # Auction: pool + World ID + sealed bids + Vickrey
-│   │   ├── LienFiRWAToken.sol          # ERC-20 RWA token (being replaced by PropertyNFT)
-│   │   ├── LoanManager.sol              # [NEW] Full mortgage lifecycle + CRE verdict receiver
-│   │   ├── LendingPool.sol              # [NEW] USDC pool, disburse, EMI collection
-│   │   ├── clUSDC.sol                   # [NEW] Receipt token, appreciating exchange rate
-│   │   ├── PropertyNFT.sol              # [NEW] ERC-721, commitment hash only, no metadata
-│   │   ├── ReceiverTemplate.sol         # Abstract base for Keystone CRE reports
+│   │   ├── LienFiAuction.sol           # Auction: deposit pool + World ID + sealed bids + Vickrey
+│   │   ├── LienFiRWAToken.sol          # ERC-20 RWA token (legacy)
+│   │   ├── LoanManager.sol             # Full mortgage lifecycle + CRE verdict receiver
+│   │   ├── LendingPool.sol             # USDC pool — disburse, EMI collection
+│   │   ├── clUSDC.sol                  # Receipt token with appreciating exchange rate
+│   │   ├── PropertyNFT.sol             # ERC-721 — commitment hash only, no on-chain metadata
+│   │   ├── ReceiverTemplate.sol        # Abstract base for Keystone CRE DON-signed reports
 │   │   ├── interfaces/
-│   │   │   ├── IWorldID.sol
-│   │   │   └── ILienFiRWAToken.sol
+│   │   │   ├── ILendingPool.sol
+│   │   │   ├── ILienFiAuction.sol
+│   │   │   ├── ILienFiRWAToken.sol
+│   │   │   ├── ILoanManager.sol
+│   │   │   ├── IPropertyNFT.sol
+│   │   │   ├── IReceiver.sol
+│   │   │   └── IWorldID.sol
 │   │   ├── libraries/
-│   │   │   └── ByteHasher.sol           # World ID field hashing
+│   │   │   └── ByteHasher.sol          # World ID field hashing
 │   │   └── mocks/
-│   │       ├── MockWorldIDRouter.sol     # Always-pass World ID for testing
-│   │       └── MockUSDC.sol             # 6-decimal test USDC
+│   │       ├── MockWorldIDRouter.sol   # Always-pass World ID for testing
+│   │       └── MockUSDC.sol            # 6-decimal test USDC
 │   ├── script/
-│   │   └── DeployLienFi.s.sol          # Full deployment + wiring script
+│   │   └── DeployLienFi.s.sol         # Full deployment + wiring script
 │   └── foundry.toml
 ├── api/                                 # Private API (Express.js + TypeScript)
-│   ├── src/
-│   │   ├── server.ts
-│   │   ├── routes/
-│   │   │   ├── bid.ts                   # POST /bid — EIP-712 validation + bid storage
-│   │   │   ├── settle.ts               # POST /settle — Vickrey settlement
-│   │   │   ├── status.ts               # GET /status/:auctionId
-│   │   │   ├── loanRequest.ts          # [NEW] POST /loanRequest — store details, return hash
-│   │   │   ├── listing.ts             # [NEW] GET /listing/:auctionId — sanitized listing
-│   │   │   └── reveal.ts              # [NEW] POST /reveal/:auctionId — winner-only full details
-│   │   └── lib/
-│   │       ├── store.ts                 # In-memory bid + loan request + property storage
-│   │       ├── eip712.ts               # EIP-712 signature verification
-│   │       ├── auth.ts                 # API key middleware
-│   │       ├── chain.ts               # On-chain state reads
-│   │       └── vickrey.ts             # Second-price auction settlement logic
-│   └── package.json
+│   └── src/
+│       ├── server.ts
+│       ├── routes/
+│       │   ├── bid.ts                  # POST /bid — EIP-712 validation + bid storage
+│       │   ├── bidHash.ts              # GET /bidHash/:auctionId/:bidder — retrieve bid hash
+│       │   ├── listing.ts              # GET /listing/:auctionId — sanitized auction listing
+│       │   ├── listingHash.ts          # GET /listingHash/:auctionId — listing hash lookup
+│       │   ├── loanRequest.ts          # POST /loanRequest — store request details, return hash
+│       │   ├── pendingBid.ts           # GET /pendingBid/:auctionId — pending bid status
+│       │   ├── reveal.ts               # POST /reveal/:auctionId — winner-only address reveal
+│       │   ├── settle.ts               # POST /settle — trigger Vickrey settlement
+│       │   ├── status.ts               # GET /status/:auctionId — auction status
+│       │   ├── verifyProperty.ts       # POST /verify-property — property verification + commitment hash
+│       │   └── workflowLogs.ts         # GET /workflow-logs — CRE workflow execution logs
+│       └── lib/
+│           ├── auth.ts                 # API key middleware
+│           ├── chain.ts                # On-chain state reads (viem)
+│           ├── db.ts                   # Persistent storage layer
+│           ├── eip712.ts               # EIP-712 signature verification
+│           ├── store.ts                # In-memory bid + loan request + property store
+│           └── vickrey.ts              # Second-price auction settlement logic
 ├── cre-workflows/                       # Chainlink CRE Workflows
-│   ├── project.yaml                     # CRE project settings (RPC URLs, chains)
-│   ├── secrets.yaml                     # Vault DON secret mappings
-│   ├── mint-workflow/                   # Workflow 0: RWA Token Minting (HTTP trigger)
-│   ├── bid-workflow/                    # Workflow 1: Sealed Bid Collection (HTTP trigger)
-│   ├── settlement-workflow/             # Workflow 2: Vickrey Settlement (cron trigger)
-│   ├── credit-assessment-workflow/      # [NEW] Workflow 3: Plaid + Gemini (log trigger)
-│   └── generate-bid-payload.ts          # Helper: generate EIP-712 signed test bids
+│   ├── project.yaml                    # CRE project settings (RPC URLs, chains)
+│   ├── secrets.yaml                    # Vault DON secret mappings
+│   ├── abis/                           # Contract ABIs consumed by workflows
+│   │   ├── LienFiAuctionABI.json
+│   │   └── LoanManagerABI.json
+│   ├── bid-workflow/                   # Sealed bid collection (HTTP trigger)
+│   ├── create-auction-workflow/        # Default detection + auction creation (HTTP trigger)
+│   ├── credit-assessment-workflow/     # Plaid + Gemini credit scoring (log trigger)
+│   ├── settlement-workflow/            # Vickrey settlement (cron trigger)
+│   └── generate-bid-payload.ts         # Helper: generate EIP-712 signed test bids
+├── frontend/                            # Next.js dashboard (Privy + wagmi)
+│   └── src/
+│       ├── app/
+│       │   ├── auctions/               # Auction listing + detail pages
+│       │   ├── borrow/                 # Borrower loan application flow
+│       │   ├── pool/                   # Lender deposit + clUSDC stats
+│       │   └── workflows/              # CRE workflow execution log viewer
+│       ├── components/
+│       │   ├── charts/                 # Exchange rate + pool composition charts
+│       │   ├── layout/                 # Sidebar, TopNav, BottomDock
+│       │   └── ui/                     # Shared UI primitives (shadcn-style)
+│       ├── config/                     # Contract addresses, Privy, wagmi config
+│       ├── hooks/                      # useAuction, useLoan, usePool, useTokenBalances
+│       └── lib/                        # API client, tx history, notifications
+├── demo/                                # End-to-end demo orchestrator (tsx)
+│   └── src/
+│       ├── main.ts                     # CLI entry — arg parsing, startup checks, phase runner
+│       ├── config.ts                   # Env var loading + defaults
+│       ├── clients.ts                  # viem wallet/public clients per actor
+│       ├── abis.ts                     # Contract ABIs
+│       ├── logger.ts                   # Chalk-coloured per-phase logger
+│       ├── checkpoint.ts               # Phase checkpoint read/write
+│       ├── cre.ts                      # CRE CLI wrapper (spawn + capture)
+│       ├── utils.ts                    # poll, sleep, format helpers
+│       └── phases/
+│           ├── a-pool-funding.ts
+│           ├── b-property-mint.ts
+│           ├── c-credit-assessment.ts
+│           ├── d-loan-disbursement.ts
+│           ├── e-repayment.ts
+│           ├── f1-default-auction.ts
+│           ├── f2-sealed-bidding.ts
+│           └── f3-settlement.ts
 ├── assets/                              # Logo, banner, diagrams
-├── LIENFI_SPEC.md                       # Full technical specification
-├── DEPLOY_AND_TEST_BID_WORKFLOW.md      # Step-by-step deployment + testing guide
 └── README.md
 ```
 
@@ -601,13 +747,111 @@ Borrower                    API                         CRE Enclave
 
 ---
 
-## Demo
+## Running the Demo
 
-> **Video Walkthrough:** [Coming Soon](#)
->
-> **Deployed Contracts (Sepolia):** [Coming Soon](#)
->
-> **Live API:** [Coming Soon](#)
+The demo script runs the full LienFi lifecycle end-to-end on Sepolia: pool funding → property mint → credit assessment → loan disbursement → repayment → default detection → sealed-bid auction → Vickrey settlement.
+
+### Prerequisites
+
+- Node.js 20+
+- [CRE CLI](https://docs.chain.link/cre/getting-started/cli-installation)
+- 4 Sepolia wallets funded with ~0.05 ETH each (lender, borrower, bidder A, bidder B)
+- [Plaid](https://dashboard.plaid.com/) sandbox credentials (free signup)
+
+### 1. Set up the demo environment
+
+```bash
+cd demo
+npm install
+cp .env.example .env
+```
+
+Edit `demo/.env` — the following are **pre-configured** and ready to use:
+
+| Variable | Value |
+|----------|-------|
+| `RPC_URL` | `https://ethereum-sepolia-rpc.publicnode.com` |
+| `API_URL` | `https://lienfi.onrender.com` |
+| `API_KEY` | `33ab8800ae775f6b302118a9f9811bf77d4633450ee690e27afcd2eb4a33cc25` |
+| `MOCK_USDC_ADDRESS` | `0xFa5B0cF5301C6263Df3F39624984BC9aE918faA3` |
+| `LENDING_POOL_ADDRESS` | `0x87BcBc638d700bb91b36B8607cB4d22dcD4c8A61` |
+| `LOAN_MANAGER_ADDRESS` | `0x11B0a5D5B1A922a46C17C21Fb4cb6A8559C3076F` |
+| `PROPERTY_NFT_ADDRESS` | `0x30D49451E729756627A085a9ee0bc2A0eE2F2806` |
+| `LIENFI_AUCTION_ADDRESS` | `0xffE7cE1f9C1624c6419FDd9E9d3A57d95E36DAa6` |
+| `CL_USDC_ADDRESS` | `0x9eCf84eC8EB63BCFD9DD3B487D6935d9Cc319019` |
+
+You **must** set these yourself:
+
+| Variable | How to get it |
+|----------|---------------|
+| `LENDER_PRIVATE_KEY` | Sepolia wallet private key (0x-prefixed, 64 hex chars) |
+| `BORROWER_PRIVATE_KEY` | Different Sepolia wallet |
+| `BIDDER_A_PRIVATE_KEY` | Different Sepolia wallet |
+| `BIDDER_B_PRIVATE_KEY` | Different Sepolia wallet |
+| `PLAID_CLIENT_ID` | From [Plaid Dashboard](https://dashboard.plaid.com/) (sandbox) |
+| `PLAID_SECRET` | From Plaid Dashboard (sandbox secret) |
+
+### 2. Set up the CRE workflow environment
+
+The demo invokes CRE workflows for credit assessment, bid submission, default detection, and settlement. You need to configure the CRE environment:
+
+```bash
+cd cre-workflows
+cp .env.example .env
+```
+
+Edit `cre-workflows/.env` — the API key is **pre-configured**:
+
+```env
+MY_API_KEY_ALL=33ab8800ae775f6b302118a9f9811bf77d4633450ee690e27afcd2eb4a33cc25
+```
+
+You **must** set these yourself:
+
+| Variable | How to get it |
+|----------|---------------|
+| `CRE_ETH_PRIVATE_KEY` | Sepolia wallet private key used by CRE workflows to sign and submit on-chain transactions |
+| `AES_KEY_ALL` | 32-byte hex AES-GCM encryption key (`openssl rand -hex 32`) |
+| `GROQ_API_KEY_ALL` | From [Groq Console](https://console.groq.com/) |
+| `PLAID_SECRET_ALL` | Same Plaid sandbox secret as demo |
+| `PLAID_CLIENT_ID_ALL` | Same Plaid client ID as demo |
+
+### 3. Run the demo
+
+```bash
+cd demo
+
+# Run all phases (A through F3)
+npm run demo
+
+# Start fresh (clear checkpoint and run from the beginning)
+npm run demo:fresh
+
+# Resume from a specific phase
+npm run demo:from -- e
+
+# Run a single phase
+npx tsx src/main.ts --phase f2
+```
+
+> **First run?** Use `npm run demo:fresh` to ensure a clean start.
+
+The demo uses a checkpoint file (`demo/checkpoint.json`) to track progress. If a phase fails, fix the issue and re-run — it will resume from where it left off. Use `npm run demo:fresh` to clear the checkpoint and start over.
+
+### Demo Phases
+
+| Phase | Description | Duration |
+|-------|------------|----------|
+| **A** | Pool Funding — lender deposits USDC, receives clUSDC | ~30s |
+| **B** | Property Mint — borrower verifies property, mints NFT | ~30s |
+| **C** | Credit Assessment — loan request → CRE → Plaid + AI scoring | ~2min |
+| **D** | Loan Disbursement — NFT locked, USDC disbursed | ~30s |
+| **E** | Repayment + Default — 1 EMI paid, then wait for default detection | ~8min |
+| **F1** | Default Auction — CRE detects default, creates auction | ~1min |
+| **F2** | Sealed Bidding — two bidders deposit + submit sealed bids | ~2min |
+| **F3** | Vickrey Settlement — CRE settles auction, winner gets NFT | ~1min |
+
+> See [`demo/sample-output.txt`](demo/sample-output.txt) for a full example of what the demo output looks like.
 
 ---
 

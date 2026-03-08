@@ -185,33 +185,42 @@ export async function phaseF2(
     log.step(2, 5, "Bidder B setup — already done, skipping");
   }
 
-  // Step 3: Submit Bidder A's signed bid via CRE
+  // Step 3: Submit Bidder A's signed bid
   if (done < 3) {
     log.step(3, 5, `Submitting Bidder A bid: ${formatUsdc(config.bidAAmount)}`);
 
+    // 3a. Sign bid and store via POST /bid
     const bidPayloadA = await signBid(
-      clients.bidderA,
-      config,
-      auctionId,
-      config.bidAAmount,
-      1,
-      deadlineNum
+      clients.bidderA, config, auctionId, config.bidAAmount, 1, deadlineNum
     );
+    const resA = await fetch(`${config.apiUrl}/bid`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Api-Key": config.apiKey },
+      body: JSON.stringify(bidPayloadA),
+    });
+    if (!resA.ok) {
+      const err = await resA.json();
+      throw new Error(`POST /bid failed for Bidder A: ${err.error}`);
+    }
+    log.info("Bidder A bid stored in API");
+
+    // 3b. Fetch pending bid from API and pass to CRE workflow
+    const pendingA = await fetch(`${config.apiUrl}/pending-bid`, {
+      headers: { "X-Api-Key": config.apiKey },
+    });
+    if (!pendingA.ok) throw new Error(`GET /pending-bid failed (${pendingA.status})`);
+    const pendingPayloadA = await pendingA.json();
 
     const creResultA = await runCREWorkflow({
       creDir: config.creWorkflowsDir,
       workflowDir: "bid-workflow",
-      httpPayload: bidPayloadA,
+      httpPayload: pendingPayloadA,
       broadcast: true,
     });
-
     if (!creResultA.success) {
-      log.error("Bidder A CRE workflow failed:");
-      console.log(creResultA.stdout);
-      console.error(creResultA.stderr);
       throw new Error("Bid CRE workflow failed for Bidder A");
     }
-    log.info("Bidder A bid submitted");
+    log.info("Bidder A bid registered on-chain");
 
     checkpoint.phaseF2 = { ...checkpoint.phaseF2, step: 3, bidderABidSubmitted: true };
     saveCheckpoint(checkpoint);
@@ -219,35 +228,44 @@ export async function phaseF2(
     log.step(3, 5, "Bidder A bid — already done, skipping");
   }
 
-  // Step 4: Submit Bidder B's signed bid via CRE
+  // Step 4: Submit Bidder B's signed bid
   if (done < 4) {
     log.step(4, 5, `Submitting Bidder B bid: ${formatUsdc(config.bidBAmount)}`);
 
     await sleep(10_000);
 
+    // 4a. Sign bid and store via POST /bid
     const bidPayloadB = await signBid(
-      clients.bidderB,
-      config,
-      auctionId,
-      config.bidBAmount,
-      1,
-      deadlineNum
+      clients.bidderB, config, auctionId, config.bidBAmount, 1, deadlineNum
     );
+    const resB = await fetch(`${config.apiUrl}/bid`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Api-Key": config.apiKey },
+      body: JSON.stringify(bidPayloadB),
+    });
+    if (!resB.ok) {
+      const err = await resB.json();
+      throw new Error(`POST /bid failed for Bidder B: ${err.error}`);
+    }
+    log.info("Bidder B bid stored in API");
+
+    // 4b. Fetch pending bid from API and pass to CRE workflow
+    const pendingB = await fetch(`${config.apiUrl}/pending-bid`, {
+      headers: { "X-Api-Key": config.apiKey },
+    });
+    if (!pendingB.ok) throw new Error(`GET /pending-bid failed (${pendingB.status})`);
+    const pendingPayloadB = await pendingB.json();
 
     const creResultB = await runCREWorkflow({
       creDir: config.creWorkflowsDir,
       workflowDir: "bid-workflow",
-      httpPayload: bidPayloadB,
+      httpPayload: pendingPayloadB,
       broadcast: true,
     });
-
     if (!creResultB.success) {
-      log.error("Bidder B CRE workflow failed:");
-      console.log(creResultB.stdout);
-      console.error(creResultB.stderr);
       throw new Error("Bid CRE workflow failed for Bidder B");
     }
-    log.info("Bidder B bid submitted");
+    log.info("Bidder B bid registered on-chain");
 
     checkpoint.phaseF2 = { ...checkpoint.phaseF2, step: 4, bidderBBidSubmitted: true };
     saveCheckpoint(checkpoint);

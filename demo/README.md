@@ -122,6 +122,5 @@ Before running any phase, the script verifies:
 | `Missing required env var` | Check your `.env` file has all required values |
 | `low ETH balance` warning | Fund the wallet with Sepolia ETH from a faucet |
 | API phases fail | Ensure the API server is running and `API_URL` is correct |
-| CRE workflow fails | Run `cre auth login` and retry |
 | `No active auction found` | The create-auction CRE workflow may need a few seconds — re-run with `--from f1` |
 | Auction deadline not passed | The script polls automatically — just wait |

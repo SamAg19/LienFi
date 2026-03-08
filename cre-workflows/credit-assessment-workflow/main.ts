@@ -610,6 +610,7 @@ function writeVerdict(
   runtime.log(
     `Verdict written: approved=${params.approved} txHash=${txHash}`
   )
+  runtime.log(`Explorer: https://sepolia.etherscan.io/tx/${txHash}`)
   return txHash
 }
 

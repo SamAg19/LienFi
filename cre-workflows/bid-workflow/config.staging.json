@@ -1,10 +1,10 @@
 {
-  "url": "https://sealbid.onrender.com",
+  "url": "https://lienfi.onrender.com",
   "owner": "0xf6aC8a8715024fE9Ff592D6A3f186E2B502B356a",
   "evms": [
     {
       "chainSelectorName": "ethereum-testnet-sepolia",
-      "contractAddress": "0x0eE56c0fA9d2eb500be8853F3785D5356B1bC813",
+      "contractAddress": "0xffE7cE1f9C1624c6419FDd9E9d3A57d95E36DAa6",
       "gasLimit": "500000"
     }
   ]

@@ -1,0 +1,728 @@
+╔══════════════════════════════════════════════════════════╗
+║            LienFi  End-to-End Demo                       ║
+║            Network: Sepolia (chainId: 11155111)          ║
+║            2026-03-08 12:27:28                           ║
+╚══════════════════════════════════════════════════════════╝
+
+Clearing checkpoint (--fresh)...
+
+Checking prerequisites...
+
+  Lender (0x8Add...42C1): 0.249976233607317746 ETH
+  Borrower (0x3d18...3735): 0.249970013506297294 ETH
+  Bidder A (0x14db...9C94): 0.249996408888629056 ETH
+  Bidder B (0x1BE4...f200): 0.249996708201723301 ETH
+  MockUSDC decimals: 6
+  Warming API server...
+  API server: OK
+
+Running phases: A, B, C, D, E, F1, F2, F3
+
+
+============================================================
+  Phase A: Pool Funding
+============================================================
+12:27:30 [Phase A] [1/4] Minting 5,00,000 USDC to Lender (0x8Add...42C1)
+12:27:37 [Phase A]   TX mint: 0x45de91ee3fddf052b69fa6152e59d529f9049f8436f0a879877bb09ec70b85ee
+12:27:37 [Phase A]   Explorer: https://sepolia.etherscan.io/tx/0x45de91ee3fddf052b69fa6152e59d529f9049f8436f0a879877bb09ec70b85ee
+12:27:37 [Phase A] [2/4] Approving LendingPool for 5,00,000 USDC
+12:28:02 [Phase A]   TX approve: 0xfd19d0e935a66ddd288977ec8101e8be3d6feff0e983a2db37958b438b8a220a
+12:28:02 [Phase A]   Explorer: https://sepolia.etherscan.io/tx/0xfd19d0e935a66ddd288977ec8101e8be3d6feff0e983a2db37958b438b8a220a
+12:28:02 [Phase A] [3/4] Depositing 5,00,000 USDC into LendingPool
+12:28:13 [Phase A]   TX deposit: 0xcdecb2c38033520e329daa3e6d846e80b5af8c2c448d5138fbdf50413ecb9538
+12:28:13 [Phase A]   Explorer: https://sepolia.etherscan.io/tx/0xcdecb2c38033520e329daa3e6d846e80b5af8c2c448d5138fbdf50413ecb9538
+12:28:13 [Phase A] [4/4] Verifying pool state
+12:28:13 [Phase A]   Pool liquidity: 2500001.999998 USDC
+12:28:13 [Phase A]   Lender clUSDC balance: 2499996.722226 USDC
+12:28:13 [Phase A] OK: Pool funded successfully
+
+============================================================
+  Phase B: Property NFT Minting
+============================================================
+12:28:13 [Phase B] [1/3] Verifying property PROP-001 for borrower 0x3d18...3735
+12:28:15 [Phase B]   Token ID: 4
+12:28:15 [Phase B]   Metadata Hash: 0x1bf8a6d8c8d498b91284ccef1c443f4af15a7ace77c4140235d5b0fd6a2ab17a
+12:28:15 [Phase B]   Appraised Value: $10,00,000
+12:28:15 [Phase B] [2/3] Minting PropertyNFT with metadataHash
+12:28:26 [Phase B]   TX mint: 0x024dce61ad049a7ee882a90bc75cba2bc873e700e1ef7f0e86c4ed67358061cb
+12:28:26 [Phase B]   Explorer: https://sepolia.etherscan.io/tx/0x024dce61ad049a7ee882a90bc75cba2bc873e700e1ef7f0e86c4ed67358061cb
+12:28:26 [Phase B] [3/3] Verifying NFT ownership
+12:28:26 [Phase B]   NFT owner: 0x3d18...3735
+12:28:26 [Phase B] OK: PropertyNFT #4 minted to borrower
+
+============================================================
+  Phase C: Credit Assessment
+============================================================
+12:28:26 [Phase C] [1/5] Generating Plaid sandbox access token
+12:28:31 [Phase C]   Plaid access token: access-sandbox-932c3...
+12:28:31 [Phase C] [2/5] Submitting loan request to API
+12:28:31 [Phase C]   Request Hash: 0xb4ccef392a206490ff7954bf2163d528cdbed36a9c46d9e4a6aebe55b863453d
+12:28:31 [Phase C] [3/5] Submitting requestHash on-chain as borrower 0x3d18...3735
+12:28:51 [Phase C]   TX submitRequest: 0xfa29a98a1f90cd14d7731c88bc30fa57db989d54b0d4db3c3edbdea4e4f4641b
+12:28:51 [Phase C]   Explorer: https://sepolia.etherscan.io/tx/0xfa29a98a1f90cd14d7731c88bc30fa57db989d54b0d4db3c3edbdea4e4f4641b
+12:28:51 [Phase C]   Block: 10408619
+12:28:51 [Phase C] [4/5] Running CRE credit-assessment workflow
+  CRE CMD: cre workflow simulate ./credit-assessment-workflow --target staging-settings --non-interactive --trigger-index 0 --evm-tx-hash 0xfa29a98a1f90cd14d7731c88bc30fa57db989d54b0d4db3c3edbdea4e4f4641b --evm-event-index 0 --broadcast --verbose
+Initializing...
+{"level":"debug","client":"GraphQL","time":"2026-03-08T17:58:51+05:30","message":">> variables: map[]"}
+{"level":"debug","client":"GraphQL","time":"2026-03-08T17:58:51+05:30","message":">> query: \nquery GetOrganizationDetails  {\n\tgetOrganization {\n\t\torganizationId\n\t}\n}"}
+{"level":"debug","client":"GraphQL","time":"2026-03-08T17:58:51+05:30","message":">> headers: map[Accept:[application/json; charset=utf-8] Authorization:[[REDACTED]] Content-Type:[application/json; charset=utf-8] User-Agent:[cre-cli]]"}
+{"level":"debug","client":"GraphQL","time":"2026-03-08T17:58:52+05:30","message":"<< {\"data\":{\"getOrganization\":{\"organizationId\":\"org_tqGe9HUhEFU4ur1n\"}}}"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"Target:  staging-settings"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"setting \"logging.seth-config-path\" not found in target \"staging-settings\""}
+Loading settings...
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for ethereum-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for ethereum-testnet-sepolia-base-1; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for ethereum-mainnet-base-1; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for avalanche-testnet-fuji; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for avalanche-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for polygon-testnet-amoy; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for polygon-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for binance_smart_chain-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for binance_smart_chain-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for ethereum-testnet-sepolia-arbitrum-1; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for ethereum-mainnet-arbitrum-1; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for ethereum-testnet-sepolia-optimism-1; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for ethereum-mainnet-optimism-1; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for private-testnet-andesite; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for ethereum-mainnet-zksync-1; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for ethereum-testnet-sepolia-zksync-1; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for jovay-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for jovay-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for pharos-atlantic-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for pharos-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for ethereum-testnet-sepolia-worldchain-1; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for ethereum-mainnet-worldchain-1; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for plasma-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for ethereum-testnet-sepolia-linea-1; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for ink-testnet-sepolia; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for hyperliquid-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for apechain-testnet-curtis; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for arc-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T17:58:52+05:30","message":"RPC not provided for ethereum-mainnet-xlayer-1; skipping"}
+Checking RPC connectivity...
+Compiling workflow...
+{"level":"debug","time":"2026-03-08T17:58:53+05:30","message":"Workflow compiled"}
+✓ Workflow compiled
+Fetching transaction receipt for 0xfa29a98a1f90cd14d7731c88bc30fa57db989d54b0d4db3c3edbdea4e4f4641b...
+2026-03-08T17:58:54Z [SIMULATION] Simulator Initialized
+
+2026-03-08T17:58:54Z [SIMULATION] Running trigger trigger=evm:ChainSelector:16015286601757825753@1.0.0
+2026-03-08T17:58:54Z [WORKFLOW] WorkflowExecutionStarted
+  TriggerID: manual-evm-chain-trigger-id
+  WorkflowOwner: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  WorkflowName: credit-assessment
+  Version: 2.0.0
+  WorkflowID: 1111111111111111111111111111111111111111111111111111111111111111
+  WorkflowExecutionID: c094f178ec897b31f4b7a8aaffb03f9dee1437483a927459a2d4197dafbfebf6
+  DonID: 1
+  DonF: 0
+  DonN: 1
+  P2PID: 12D3KooW9pNAk8aiBuGVQtWRdbkLmo5qVL3e2h5UxbN2Nz9ttwiw
+  Trigger: <nil>
+2026-03-08T17:58:54Z [USER LOG] LoanRequestSubmitted: borrower=0x3d1830d56AeA61eCfE38C02ADB726908a8d13735 requestHash=0xb4ccef392a206490ff7954bf2163d528cdbed36a9c46d9e4a6aebe55b863453d
+2026-03-08T17:58:54Z [SIMULATOR]       step[0]   Capability: confidential-http@1.0.0-alpha - STARTED
+2026-03-08T17:58:56Z [SIMULATOR]       step[0]   Capability: confidential-http@1.0.0-alpha - COMPLETED
+2026-03-08T17:58:56Z [SIMULATOR]       step[0]   Capability: consensus@1.0.0-alpha - STARTED
+2026-03-08T17:58:56Z [SIMULATOR]       step[0]   Capability: consensus@1.0.0-alpha - COMPLETED
+2026-03-08T17:58:56Z [USER LOG] Fetched request: tokenId=4 amount=100000000 tenure=360
+2026-03-08T17:58:56Z [USER LOG] Hash integrity verified
+2026-03-08T17:58:56Z [USER LOG] Computed EMI: 733765 (0.73 USDC/mo)
+2026-03-08T17:58:56Z [SIMULATOR]       step[-2]   Capability: confidential-http@1.0.0-alpha - STARTED
+2026-03-08T17:58:57Z [SIMULATOR]       step[-2]   Capability: confidential-http@1.0.0-alpha - COMPLETED
+2026-03-08T17:58:57Z [SIMULATOR]       step[1]   Capability: consensus@1.0.0-alpha - STARTED
+2026-03-08T17:58:57Z [SIMULATOR]       step[1]   Capability: consensus@1.0.0-alpha - COMPLETED
+2026-03-08T17:58:57Z [USER LOG] Plaid metrics: income=$252/mo DTI=0.0% stability=5%
+2026-03-08T17:58:57Z [SIMULATOR]       step[-3]   Capability: confidential-http@1.0.0-alpha - STARTED
+2026-03-08T17:58:58Z [SIMULATOR]       step[-3]   Capability: confidential-http@1.0.0-alpha - COMPLETED
+2026-03-08T17:58:58Z [SIMULATOR]       step[2]   Capability: consensus@1.0.0-alpha - STARTED
+2026-03-08T17:58:58Z [SIMULATOR]       step[2]   Capability: consensus@1.0.0-alpha - COMPLETED
+2026-03-08T17:58:58Z [USER LOG] AI verdict: verdict=approve approvedAmount=100000000
+2026-03-08T17:58:58Z [SIMULATOR]       step[3]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - STARTED
+2026-03-08T17:58:58Z [SIMULATOR]       step[3]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - COMPLETED
+2026-03-08T17:58:58Z [USER LOG] All checks passed. Writing approval verdict on-chain.
+2026-03-08T17:58:58Z [SIMULATOR]       step[4]   Capability: consensus@1.0.0-alpha - STARTED
+2026-03-08T17:58:58Z [SIMULATOR]       step[4]   Capability: consensus@1.0.0-alpha - COMPLETED
+2026-03-08T17:58:58Z [SIMULATOR]       step[5]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - STARTED
+2026-03-08T17:59:13Z [SIMULATOR]       step[5]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - COMPLETED
+2026-03-08T17:59:13Z [USER LOG] Verdict written: approved=true txHash=0x8d3d08f767f3fe1f2cfc9afc5160cc2f24bae00a964c16c9d7b01c16b7cdba93
+2026-03-08T17:59:13Z [USER LOG] Explorer: https://sepolia.etherscan.io/tx/0x8d3d08f767f3fe1f2cfc9afc5160cc2f24bae00a964c16c9d7b01c16b7cdba93
+
+✓ Workflow Simulation Result:
+"0x8d3d08f767f3fe1f2cfc9afc5160cc2f24bae00a964c16c9d7b01c16b7cdba93"
+
+2026-03-08T17:59:13Z [SIMULATION] Execution finished signal received
+2026-03-08T17:59:13Z [SIMULATION] Skipping WorkflowEngineV2
+2026-03-08T17:59:13Z [WORKFLOW] WorkflowExecutionFinished - Status: SUCCESS
+  WorkflowOwner: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  WorkflowName: credit-assessment
+  Version: 2.0.0
+  WorkflowID: 1111111111111111111111111111111111111111111111111111111111111111
+  WorkflowExecutionID: c094f178ec897b31f4b7a8aaffb03f9dee1437483a927459a2d4197dafbfebf6
+  DonID: 1
+  DonF: 0
+  DonN: 1
+  P2PID: 12D3KooW9pNAk8aiBuGVQtWRdbkLmo5qVL3e2h5UxbN2Nz9ttwiw
+  Trigger: <nil>
+{"level":"debug","claims":{"aud":["https://api.cre.chain.link/","https://cre-production.eu.auth0.com/userinfo"],"azp":"vMqPqJ3ApbeN8jNeA42Dn4UxbkfhQQkW","exp":1772973040,"https://api.cre.chain.link/email":"sameeragarwal1910@gmail.com","https://api.cre.chain.link/email_verified":true,"https://api.cre.chain.link/organization_roles":"ROOT","https://api.cre.chain.link/organization_status":"GATED","iat":1772972140,"iss":"https://login.chain.link/","org_id":"org_tqGe9HUhEFU4ur1n","scope":"openid profile email offline_access","sub":"auth0|699840781a4e059e340a9237"},"time":"2026-03-08T17:59:13+05:30","message":"JWT claims decoded"}
+{"level":"debug","claim_key":"https://api.cre.chain.link/organization_status","organization_status":"GATED","time":"2026-03-08T17:59:13+05:30","message":"checking organization status claim"}
+{"level":"debug","organization_status":"GATED","has_access":false,"time":"2026-03-08T17:59:13+05:30","message":"deployment access status retrieved"}
+
+╭──────────────────────────────────────────────────────╮
+│ Simulation complete! Ready to deploy your workflow?  │
+│                                                      │
+│ Run cre account access to request deployment access. │
+╰──────────────────────────────────────────────────────╯
+{"level":"debug","time":"2026-03-08T17:59:13+05:30","message":"Current version parsed as: 1.3.0"}
+{"level":"debug","time":"2026-03-08T17:59:13+05:30","message":"Loading cache from /Users/sameeragarwal/.cre/update.json"}
+{"level":"debug","time":"2026-03-08T17:59:13+05:30","message":"Cache loaded. Last check: 2026-03-08 00:05:01.039438 +0530 IST, Latest version: v1.3.0"}
+{"level":"debug","time":"2026-03-08T17:59:13+05:30","message":"Using cached latest version: v1.3.0"}
+{"level":"debug","time":"2026-03-08T17:59:13+05:30","message":"Current version 1.3.0 is up-to-date."}
+12:29:13 [Phase C] CRE workflow completed
+12:29:13 [Phase C] [5/5] Polling for credit verdict on-chain
+12:29:13 [Phase C]   Approved Limit: 100 USDC
+12:29:13 [Phase C]   Computed EMI: 0.733764 USDC
+12:29:13 [Phase C]   Expires At: 2026-03-15T12:28:58.000Z
+12:29:13 [Phase C] OK: Credit assessment approved
+
+============================================================
+  Phase D: Loan Disbursement
+============================================================
+12:29:13 [Phase D] [1/4] Approving LoanManager for PropertyNFT #4
+12:29:40 [Phase D]   TX approve: 0x56e1f8a70becb3dfc09bbca4e60f5ce99501bc2f06a1c680b51d3ceff514ee4e
+12:29:40 [Phase D]   Explorer: https://sepolia.etherscan.io/tx/0x56e1f8a70becb3dfc09bbca4e60f5ce99501bc2f06a1c680b51d3ceff514ee4e
+12:29:40 [Phase D] [2/4] Claiming loan (disbursing USDC)
+12:29:48 [Phase D]   TX claimLoan: 0x9b44bfe3a536db22a3a94865b0dcf11e1e75fa136f48bd1d288cf8a0fdbab6ca
+12:29:48 [Phase D]   Explorer: https://sepolia.etherscan.io/tx/0x9b44bfe3a536db22a3a94865b0dcf11e1e75fa136f48bd1d288cf8a0fdbab6ca
+12:29:48 [Phase D] [3/4] Verifying loan state
+12:29:49 [Phase D]   Loan ID: 4
+12:29:49 [Phase D]   Status: ACTIVE
+12:29:49 [Phase D]   Principal: 100 USDC
+12:29:49 [Phase D]   EMI Amount: 0.733764 USDC
+12:29:49 [Phase D] [4/4] Verifying USDC disbursement
+12:29:49 [Phase D]   Borrower USDC balance: 458.000002 USDC
+12:29:49 [Phase D]   NFT now held by: 0x11B0...076F
+12:29:49 [Phase D] OK: Loan #4 disbursed — 100 USDC to borrower
+
+============================================================
+  Phase E: Monthly Repayment
+============================================================
+12:29:49 [Phase E] [1/3] Approving LoanManager for 1.467528 USDC
+12:30:02 [Phase E]   TX approve: 0x0c90816a8436d39a42709996bc564671bb8c1ef3a8e01ac05e6a9bf3f52d96f1
+12:30:02 [Phase E]   Explorer: https://sepolia.etherscan.io/tx/0x0c90816a8436d39a42709996bc564671bb8c1ef3a8e01ac05e6a9bf3f52d96f1
+12:30:02 [Phase E] [2/3] Repaying EMI #1 (0.733764 USDC)
+12:30:15 [Phase E]   TX repay-1: 0xc2c518f3f5f723a8e45d9611a1b482b685e795639b90260a6836cb3849142794
+12:30:15 [Phase E]   Explorer: https://sepolia.etherscan.io/tx/0xc2c518f3f5f723a8e45d9611a1b482b685e795639b90260a6836cb3849142794
+12:30:15 [Phase E]   Remaining principal: 99.932902 USDC
+12:30:15 [Phase E]   Next due date: 2026-03-08T12:31:48.000Z
+12:30:15 [Phase E] [3/3] Borrower stops paying — waiting ~6 minutes for default threshold
+12:30:15 [Phase E] nextDueDate=2026-03-08T12:31:48.000Z, default at 2026-03-08T12:34:48.000Z
+  ✓ Default threshold reached.                    
+12:35:53 [Phase E] OK: 1 EMI payment(s) made, then borrower defaulted
+
+============================================================
+  Phase F1: Default Detection + Auction Creation
+============================================================
+12:35:53 [Phase F1] [1/3] Running CRE create-auction workflow
+12:35:53 [Phase F1] NOTE: create-auction-workflow/main.ts must have the testing override applied (defaultThreshold = 0n)
+  CRE CMD: cre workflow simulate ./create-auction-workflow --target staging-settings --non-interactive --trigger-index 0 --broadcast --verbose
+Initializing...
+{"level":"debug","time":"2026-03-08T18:05:54+05:30","message":"token expired or approaching expiration, refreshing"}
+{"level":"debug","time":"2026-03-08T18:05:54+05:30","message":"refreshing tokens"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"token refreshed"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"refreshed tokens saved to disk"}
+{"level":"debug","client":"GraphQL","time":"2026-03-08T18:05:55+05:30","message":">> variables: map[]"}
+{"level":"debug","client":"GraphQL","time":"2026-03-08T18:05:55+05:30","message":">> query: \nquery GetOrganizationDetails  {\n\tgetOrganization {\n\t\torganizationId\n\t}\n}"}
+{"level":"debug","client":"GraphQL","time":"2026-03-08T18:05:55+05:30","message":">> headers: map[Accept:[application/json; charset=utf-8] Authorization:[[REDACTED]] Content-Type:[application/json; charset=utf-8] User-Agent:[cre-cli]]"}
+{"level":"debug","client":"GraphQL","time":"2026-03-08T18:05:55+05:30","message":"<< {\"data\":{\"getOrganization\":{\"organizationId\":\"org_tqGe9HUhEFU4ur1n\"}}}"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"Target:  staging-settings"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"setting \"logging.seth-config-path\" not found in target \"staging-settings\""}
+Loading settings...
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for ethereum-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for ethereum-testnet-sepolia-base-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for ethereum-mainnet-base-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for avalanche-testnet-fuji; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for avalanche-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for polygon-testnet-amoy; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for polygon-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for binance_smart_chain-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for binance_smart_chain-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for ethereum-testnet-sepolia-arbitrum-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for ethereum-mainnet-arbitrum-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for ethereum-testnet-sepolia-optimism-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for ethereum-mainnet-optimism-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for private-testnet-andesite; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for ethereum-mainnet-zksync-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for ethereum-testnet-sepolia-zksync-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for jovay-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for jovay-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for pharos-atlantic-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for pharos-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for ethereum-testnet-sepolia-worldchain-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for ethereum-mainnet-worldchain-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for plasma-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for ethereum-testnet-sepolia-linea-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for ink-testnet-sepolia; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for hyperliquid-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for apechain-testnet-curtis; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for arc-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:05:55+05:30","message":"RPC not provided for ethereum-mainnet-xlayer-1; skipping"}
+Checking RPC connectivity...
+Compiling workflow...
+{"level":"debug","time":"2026-03-08T18:05:57+05:30","message":"Workflow compiled"}
+✓ Workflow compiled
+2026-03-08T18:05:58Z [SIMULATION] Simulator Initialized
+
+2026-03-08T18:05:58Z [SIMULATION] Running trigger trigger=cron-trigger@1.0.0
+2026-03-08T18:05:58Z [WORKFLOW] WorkflowExecutionStarted
+  TriggerID: 2026-03-08T12:35:58Z
+  WorkflowOwner: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  WorkflowName: create-auction
+  Version: 2.0.0
+  WorkflowID: 1111111111111111111111111111111111111111111111111111111111111111
+  WorkflowExecutionID: f410f66088fb4de8670783c303bbf2b002c822b3ffe67ceaa993c8d98eb67fff
+  DonID: 1
+  DonF: 0
+  DonN: 1
+  P2PID: 12D3KooW9pNAk8aiBuGVQtWRdbkLmo5qVL3e2h5UxbN2Nz9ttwiw
+  Trigger: <nil>
+2026-03-08T18:05:58Z [SIMULATOR]       step[0]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - STARTED
+2026-03-08T18:05:58Z [SIMULATOR]       step[0]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - COMPLETED
+2026-03-08T18:05:58Z [SIMULATOR]       step[1]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - STARTED
+2026-03-08T18:05:58Z [SIMULATOR]       step[1]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - COMPLETED
+2026-03-08T18:05:58Z [SIMULATOR]       step[2]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - STARTED
+2026-03-08T18:05:59Z [SIMULATOR]       step[2]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - COMPLETED
+2026-03-08T18:05:59Z [USER LOG] Scanning 4 loans for defaults (EMI_PERIOD=60s)...
+2026-03-08T18:05:59Z [SIMULATOR]       step[3]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - STARTED
+2026-03-08T18:05:59Z [SIMULATOR]       step[3]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - COMPLETED
+2026-03-08T18:05:59Z [SIMULATOR]       step[4]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - STARTED
+2026-03-08T18:05:59Z [SIMULATOR]       step[4]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - COMPLETED
+2026-03-08T18:05:59Z [SIMULATOR]       step[5]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - STARTED
+2026-03-08T18:05:59Z [SIMULATOR]       step[5]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - COMPLETED
+2026-03-08T18:05:59Z [SIMULATOR]       step[6]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - STARTED
+2026-03-08T18:06:00Z [SIMULATOR]       step[6]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - COMPLETED
+2026-03-08T18:06:00Z [USER LOG] Checking loanId=4: nextDueDate=1772973108, defaultThreshold=1772973288, now=1772973359
+2026-03-08T18:06:00Z [USER LOG] Loan 4 is in default (nextDueDate=1772973108, now=1772973359)
+2026-03-08T18:06:00Z [SIMULATOR]       step[0]   Capability: confidential-http@1.0.0-alpha - STARTED
+2026-03-08T18:06:00Z [SIMULATOR]       step[0]   Capability: confidential-http@1.0.0-alpha - COMPLETED
+2026-03-08T18:06:00Z [SIMULATOR]       step[7]   Capability: consensus@1.0.0-alpha - STARTED
+2026-03-08T18:06:00Z [SIMULATOR]       step[7]   Capability: consensus@1.0.0-alpha - COMPLETED
+2026-03-08T18:06:00Z [USER LOG] Fetched listingHash=0x299e9601... for tokenId=4
+2026-03-08T18:06:00Z [SIMULATOR]       step[8]   Capability: consensus@1.0.0-alpha - STARTED
+2026-03-08T18:06:00Z [SIMULATOR]       step[8]   Capability: consensus@1.0.0-alpha - COMPLETED
+2026-03-08T18:06:00Z [SIMULATOR]       step[9]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - STARTED
+2026-03-08T18:06:12Z [SIMULATOR]       step[9]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - COMPLETED
+2026-03-08T18:06:12Z [USER LOG] Default processed for loanId=4: 0xaa7320e48651826666783c9b8a97f6f1e19f3585bde410a7bedfc816282e248d
+2026-03-08T18:06:12Z [USER LOG] Explorer: https://sepolia.etherscan.io/tx/0xaa7320e48651826666783c9b8a97f6f1e19f3585bde410a7bedfc816282e248d
+
+✓ Workflow Simulation Result:
+"0xaa7320e48651826666783c9b8a97f6f1e19f3585bde410a7bedfc816282e248d"
+
+2026-03-08T18:06:12Z [SIMULATION] Execution finished signal received
+2026-03-08T18:06:12Z [SIMULATION] Skipping WorkflowEngineV2
+2026-03-08T18:06:12Z [WORKFLOW] WorkflowExecutionFinished - Status: SUCCESS
+  WorkflowOwner: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  WorkflowName: create-auction
+  Version: 2.0.0
+  WorkflowID: 1111111111111111111111111111111111111111111111111111111111111111
+  WorkflowExecutionID: f410f66088fb4de8670783c303bbf2b002c822b3ffe67ceaa993c8d98eb67fff
+  DonID: 1
+  DonF: 0
+  DonN: 1
+  P2PID: 12D3KooW9pNAk8aiBuGVQtWRdbkLmo5qVL3e2h5UxbN2Nz9ttwiw
+  Trigger: <nil>
+{"level":"debug","claims":{"aud":["https://api.cre.chain.link/","https://cre-production.eu.auth0.com/userinfo"],"azp":"vMqPqJ3ApbeN8jNeA42Dn4UxbkfhQQkW","exp":1772974255,"https://api.cre.chain.link/email":"sameeragarwal1910@gmail.com","https://api.cre.chain.link/email_verified":true,"https://api.cre.chain.link/organization_roles":"ROOT","https://api.cre.chain.link/organization_status":"GATED","iat":1772973355,"iss":"https://login.chain.link/","org_id":"org_tqGe9HUhEFU4ur1n","scope":"openid profile email offline_access","sub":"auth0|699840781a4e059e340a9237"},"time":"2026-03-08T18:06:12+05:30","message":"JWT claims decoded"}
+{"level":"debug","claim_key":"https://api.cre.chain.link/organization_status","organization_status":"GATED","time":"2026-03-08T18:06:12+05:30","message":"checking organization status claim"}
+{"level":"debug","organization_status":"GATED","has_access":false,"time":"2026-03-08T18:06:12+05:30","message":"deployment access status retrieved"}
+
+╭──────────────────────────────────────────────────────╮
+│ Simulation complete! Ready to deploy your workflow?  │
+│                                                      │
+│ Run cre account access to request deployment access. │
+╰──────────────────────────────────────────────────────╯
+{"level":"debug","time":"2026-03-08T18:06:12+05:30","message":"Current version parsed as: 1.3.0"}
+{"level":"debug","time":"2026-03-08T18:06:12+05:30","message":"Loading cache from /Users/sameeragarwal/.cre/update.json"}
+{"level":"debug","time":"2026-03-08T18:06:12+05:30","message":"Cache loaded. Last check: 2026-03-08 00:05:01.039438 +0530 IST, Latest version: v1.3.0"}
+{"level":"debug","time":"2026-03-08T18:06:12+05:30","message":"Using cached latest version: v1.3.0"}
+{"level":"debug","time":"2026-03-08T18:06:12+05:30","message":"Current version 1.3.0 is up-to-date."}
+12:36:13 [Phase F1] CRE workflow completed
+12:36:13 [Phase F1] [2/3] Verifying auction on-chain
+12:36:13 [Phase F1]   Auction ID: 0x1a1e6821cde7d0159c0d293177871e09677b4e42307c7db3ba94f8648a5a050f
+12:36:13 [Phase F1]   Seller: 0x11B0...076F
+12:36:13 [Phase F1]   Token ID: 4
+12:36:13 [Phase F1]   Deadline: 2026-03-08T12:41:12.000Z
+12:36:13 [Phase F1]   Reserve Price: 99.932902 USDC
+12:36:13 [Phase F1]   Settled: false
+12:36:13 [Phase F1] [3/3] Verifying loan default state
+12:36:13 [Phase F1]   Loan Status: DEFAULTED
+12:36:13 [Phase F1]   NFT held by: 0xffE7...DAa6 (LienFiAuction)
+12:36:13 [Phase F1] OK: Default detected — sealed-bid auction created
+
+============================================================
+  Phase F2: Sealed Bidding
+============================================================
+12:36:13 [Phase F2] [1/5] Setting up Bidder A
+12:36:13 [Phase F2] --- Setting up Bidder A (0x14db...9C94) ---
+12:36:13 [Phase F2]   Minting 200 USDC to Bidder A
+12:36:26 [Phase F2]   Approving LienFiAuction for 200 USDC
+12:36:39 [Phase F2]   Depositing 200 USDC to auction pool
+12:36:49 [Phase F2]   TX Bidder A deposit: 0x74ab9f7ae7933e1d10630bdd489cb185040905d19d0255f87fcba4f740bb1f71
+12:36:49 [Phase F2]   Explorer: https://sepolia.etherscan.io/tx/0x74ab9f7ae7933e1d10630bdd489cb185040905d19d0255f87fcba4f740bb1f71
+12:36:49 [Phase F2]   Bidder A pool balance: 440 USDC
+12:36:49 [Phase F2] [2/5] Setting up Bidder B
+12:36:52 [Phase F2] --- Setting up Bidder B (0x1BE4...f200) ---
+12:36:52 [Phase F2]   Minting 200 USDC to Bidder B
+12:37:01 [Phase F2]   Approving LienFiAuction for 200 USDC
+12:37:39 [Phase F2]   Depositing 200 USDC to auction pool
+12:37:48 [Phase F2]   TX Bidder B deposit: 0xd53c1716a0937f0ebb0f1d5395d9d56a0af766f2dbe6dceb879407e740147be6
+12:37:48 [Phase F2]   Explorer: https://sepolia.etherscan.io/tx/0xd53c1716a0937f0ebb0f1d5395d9d56a0af766f2dbe6dceb879407e740147be6
+12:37:49 [Phase F2]   Bidder B pool balance: 800 USDC
+12:37:49 [Phase F2] [3/5] Submitting Bidder A bid: 150 USDC
+12:37:50 [Phase F2] Bidder A bid stored in API
+  CRE CMD: cre workflow simulate ./bid-workflow --target staging-settings --non-interactive --trigger-index 0 --http-payload @/Users/sameeragarwal/Documents/hackathons/SealBid/cre-workflows/.tmp-payload-1772973471323.json --broadcast --verbose
+Initializing...
+{"level":"debug","client":"GraphQL","time":"2026-03-08T18:07:51+05:30","message":">> variables: map[]"}
+{"level":"debug","client":"GraphQL","time":"2026-03-08T18:07:51+05:30","message":">> query: \nquery GetOrganizationDetails  {\n\tgetOrganization {\n\t\torganizationId\n\t}\n}"}
+{"level":"debug","client":"GraphQL","time":"2026-03-08T18:07:51+05:30","message":">> headers: map[Accept:[application/json; charset=utf-8] Authorization:[[REDACTED]] Content-Type:[application/json; charset=utf-8] User-Agent:[cre-cli]]"}
+{"level":"debug","client":"GraphQL","time":"2026-03-08T18:07:52+05:30","message":"<< {\"data\":{\"getOrganization\":{\"organizationId\":\"org_tqGe9HUhEFU4ur1n\"}}}"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"Target:  staging-settings"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"setting \"logging.seth-config-path\" not found in target \"staging-settings\""}
+Loading settings...
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for ethereum-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for ethereum-testnet-sepolia-base-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for ethereum-mainnet-base-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for avalanche-testnet-fuji; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for avalanche-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for polygon-testnet-amoy; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for polygon-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for binance_smart_chain-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for binance_smart_chain-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for ethereum-testnet-sepolia-arbitrum-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for ethereum-mainnet-arbitrum-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for ethereum-testnet-sepolia-optimism-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for ethereum-mainnet-optimism-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for private-testnet-andesite; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for ethereum-mainnet-zksync-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for ethereum-testnet-sepolia-zksync-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for jovay-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for jovay-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for pharos-atlantic-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for pharos-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for ethereum-testnet-sepolia-worldchain-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for ethereum-mainnet-worldchain-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for plasma-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for ethereum-testnet-sepolia-linea-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for ink-testnet-sepolia; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for hyperliquid-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for apechain-testnet-curtis; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for arc-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:07:52+05:30","message":"RPC not provided for ethereum-mainnet-xlayer-1; skipping"}
+Checking RPC connectivity...
+Compiling workflow...
+{"level":"debug","time":"2026-03-08T18:07:54+05:30","message":"Workflow compiled"}
+✓ Workflow compiled
+2026-03-08T18:07:54Z [SIMULATION] Simulator Initialized
+
+2026-03-08T18:07:54Z [SIMULATION] Running trigger trigger=http-trigger@1.0.0-alpha
+2026-03-08T18:07:54Z [WORKFLOW] WorkflowExecutionStarted
+  TriggerID: manual-http-trigger-id
+  WorkflowOwner: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  WorkflowName: bid
+  Version: 2.0.0
+  WorkflowID: 1111111111111111111111111111111111111111111111111111111111111111
+  WorkflowExecutionID: 33317d48575741e79956a801306cdc72f9592f9e7745057a1488ccb2c4022665
+  DonID: 1
+  DonF: 0
+  DonN: 1
+  P2PID: 12D3KooW9pNAk8aiBuGVQtWRdbkLmo5qVL3e2h5UxbN2Nz9ttwiw
+  Trigger: <nil>
+2026-03-08T18:07:54Z [SIMULATOR]       step[0]   Capability: confidential-http@1.0.0-alpha - STARTED
+2026-03-08T18:07:55Z [SIMULATOR]       step[0]   Capability: confidential-http@1.0.0-alpha - COMPLETED
+2026-03-08T18:07:55Z [SIMULATOR]       step[0]   Capability: consensus@1.0.0-alpha - STARTED
+2026-03-08T18:07:55Z [SIMULATOR]       step[0]   Capability: consensus@1.0.0-alpha - COMPLETED
+2026-03-08T18:07:55Z [USER LOG] Bid accepted: 0xcd924eddc6b757f662b4dac87ce1e2c2d1302afb7ccb66fe01f9d49c21545347
+2026-03-08T18:07:55Z [SIMULATOR]       step[1]   Capability: consensus@1.0.0-alpha - STARTED
+2026-03-08T18:07:55Z [SIMULATOR]       step[1]   Capability: consensus@1.0.0-alpha - COMPLETED
+2026-03-08T18:07:55Z [SIMULATOR]       step[2]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - STARTED
+2026-03-08T18:08:00Z [SIMULATOR]       step[2]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - COMPLETED
+2026-03-08T18:08:00Z [USER LOG] registerBid submitted: 0x598468a4e40cd14195f0248b89e34a2ccc3e7906fa1eaae3ee9a751a7d7408a9
+2026-03-08T18:08:00Z [USER LOG] Explorer: https://sepolia.etherscan.io/tx/0x598468a4e40cd14195f0248b89e34a2ccc3e7906fa1eaae3ee9a751a7d7408a9
+
+✓ Workflow Simulation Result:
+"0x598468a4e40cd14195f0248b89e34a2ccc3e7906fa1eaae3ee9a751a7d7408a9"
+
+2026-03-08T18:08:00Z [SIMULATION] Execution finished signal received
+2026-03-08T18:08:00Z [SIMULATION] Skipping WorkflowEngineV2
+2026-03-08T18:08:00Z [WORKFLOW] WorkflowExecutionFinished - Status: SUCCESS
+  WorkflowOwner: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  WorkflowName: bid
+  Version: 2.0.0
+  WorkflowID: 1111111111111111111111111111111111111111111111111111111111111111
+  WorkflowExecutionID: 33317d48575741e79956a801306cdc72f9592f9e7745057a1488ccb2c4022665
+  DonID: 1
+  DonF: 0
+  DonN: 1
+  P2PID: 12D3KooW9pNAk8aiBuGVQtWRdbkLmo5qVL3e2h5UxbN2Nz9ttwiw
+  Trigger: <nil>
+{"level":"debug","claims":{"aud":["https://api.cre.chain.link/","https://cre-production.eu.auth0.com/userinfo"],"azp":"vMqPqJ3ApbeN8jNeA42Dn4UxbkfhQQkW","exp":1772974255,"https://api.cre.chain.link/email":"sameeragarwal1910@gmail.com","https://api.cre.chain.link/email_verified":true,"https://api.cre.chain.link/organization_roles":"ROOT","https://api.cre.chain.link/organization_status":"GATED","iat":1772973355,"iss":"https://login.chain.link/","org_id":"org_tqGe9HUhEFU4ur1n","scope":"openid profile email offline_access","sub":"auth0|699840781a4e059e340a9237"},"time":"2026-03-08T18:08:00+05:30","message":"JWT claims decoded"}
+{"level":"debug","claim_key":"https://api.cre.chain.link/organization_status","organization_status":"GATED","time":"2026-03-08T18:08:00+05:30","message":"checking organization status claim"}
+{"level":"debug","organization_status":"GATED","has_access":false,"time":"2026-03-08T18:08:00+05:30","message":"deployment access status retrieved"}
+
+╭──────────────────────────────────────────────────────╮
+│ Simulation complete! Ready to deploy your workflow?  │
+│                                                      │
+│ Run cre account access to request deployment access. │
+╰──────────────────────────────────────────────────────╯
+{"level":"debug","time":"2026-03-08T18:08:00+05:30","message":"Current version parsed as: 1.3.0"}
+{"level":"debug","time":"2026-03-08T18:08:00+05:30","message":"Loading cache from /Users/sameeragarwal/.cre/update.json"}
+{"level":"debug","time":"2026-03-08T18:08:00+05:30","message":"Cache loaded. Last check: 2026-03-08 00:05:01.039438 +0530 IST, Latest version: v1.3.0"}
+{"level":"debug","time":"2026-03-08T18:08:00+05:30","message":"Using cached latest version: v1.3.0"}
+{"level":"debug","time":"2026-03-08T18:08:00+05:30","message":"Current version 1.3.0 is up-to-date."}
+12:38:01 [Phase F2] Bidder A bid registered on-chain
+12:38:01 [Phase F2] [4/5] Submitting Bidder B bid: 120 USDC
+12:38:12 [Phase F2] Bidder B bid stored in API
+  CRE CMD: cre workflow simulate ./bid-workflow --target staging-settings --non-interactive --trigger-index 0 --http-payload @/Users/sameeragarwal/Documents/hackathons/SealBid/cre-workflows/.tmp-payload-1772973493366.json --broadcast --verbose
+Initializing...
+{"level":"debug","client":"GraphQL","time":"2026-03-08T18:08:13+05:30","message":">> variables: map[]"}
+{"level":"debug","client":"GraphQL","time":"2026-03-08T18:08:13+05:30","message":">> query: \nquery GetOrganizationDetails  {\n\tgetOrganization {\n\t\torganizationId\n\t}\n}"}
+{"level":"debug","client":"GraphQL","time":"2026-03-08T18:08:13+05:30","message":">> headers: map[Accept:[application/json; charset=utf-8] Authorization:[[REDACTED]] Content-Type:[application/json; charset=utf-8] User-Agent:[cre-cli]]"}
+{"level":"debug","client":"GraphQL","time":"2026-03-08T18:08:14+05:30","message":"<< {\"data\":{\"getOrganization\":{\"organizationId\":\"org_tqGe9HUhEFU4ur1n\"}}}"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"Target:  staging-settings"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"setting \"logging.seth-config-path\" not found in target \"staging-settings\""}
+Loading settings...
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for ethereum-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for ethereum-testnet-sepolia-base-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for ethereum-mainnet-base-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for avalanche-testnet-fuji; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for avalanche-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for polygon-testnet-amoy; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for polygon-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for binance_smart_chain-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for binance_smart_chain-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for ethereum-testnet-sepolia-arbitrum-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for ethereum-mainnet-arbitrum-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for ethereum-testnet-sepolia-optimism-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for ethereum-mainnet-optimism-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for private-testnet-andesite; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for ethereum-mainnet-zksync-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for ethereum-testnet-sepolia-zksync-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for jovay-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for jovay-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for pharos-atlantic-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for pharos-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for ethereum-testnet-sepolia-worldchain-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for ethereum-mainnet-worldchain-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for plasma-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for ethereum-testnet-sepolia-linea-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for ink-testnet-sepolia; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for hyperliquid-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for apechain-testnet-curtis; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for arc-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:08:14+05:30","message":"RPC not provided for ethereum-mainnet-xlayer-1; skipping"}
+Checking RPC connectivity...
+Compiling workflow...
+{"level":"debug","time":"2026-03-08T18:08:16+05:30","message":"Workflow compiled"}
+✓ Workflow compiled
+2026-03-08T18:08:16Z [SIMULATION] Simulator Initialized
+
+2026-03-08T18:08:16Z [SIMULATION] Running trigger trigger=http-trigger@1.0.0-alpha
+2026-03-08T18:08:16Z [WORKFLOW] WorkflowExecutionStarted
+  TriggerID: manual-http-trigger-id
+  WorkflowOwner: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  WorkflowName: bid
+  Version: 2.0.0
+  WorkflowID: 1111111111111111111111111111111111111111111111111111111111111111
+  WorkflowExecutionID: 33317d48575741e79956a801306cdc72f9592f9e7745057a1488ccb2c4022665
+  DonID: 1
+  DonF: 0
+  DonN: 1
+  P2PID: 12D3KooW9pNAk8aiBuGVQtWRdbkLmo5qVL3e2h5UxbN2Nz9ttwiw
+  Trigger: <nil>
+2026-03-08T18:08:16Z [SIMULATOR]       step[0]   Capability: confidential-http@1.0.0-alpha - STARTED
+2026-03-08T18:08:17Z [SIMULATOR]       step[0]   Capability: confidential-http@1.0.0-alpha - COMPLETED
+2026-03-08T18:08:17Z [SIMULATOR]       step[0]   Capability: consensus@1.0.0-alpha - STARTED
+2026-03-08T18:08:17Z [SIMULATOR]       step[0]   Capability: consensus@1.0.0-alpha - COMPLETED
+2026-03-08T18:08:17Z [USER LOG] Bid accepted: 0xa827e3ebe15122b775f7a52d01c753f70877413710889c51afc30c4a7bebc5c0
+2026-03-08T18:08:17Z [SIMULATOR]       step[1]   Capability: consensus@1.0.0-alpha - STARTED
+2026-03-08T18:08:17Z [SIMULATOR]       step[1]   Capability: consensus@1.0.0-alpha - COMPLETED
+2026-03-08T18:08:17Z [SIMULATOR]       step[2]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - STARTED
+2026-03-08T18:08:24Z [SIMULATOR]       step[2]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - COMPLETED
+2026-03-08T18:08:24Z [USER LOG] registerBid submitted: 0xf3ef250621675bc4c7bcd1a487638804fc19cd376ecdb63016cbfcb1beb3f1b0
+2026-03-08T18:08:24Z [USER LOG] Explorer: https://sepolia.etherscan.io/tx/0xf3ef250621675bc4c7bcd1a487638804fc19cd376ecdb63016cbfcb1beb3f1b0
+
+✓ Workflow Simulation Result:
+"0xf3ef250621675bc4c7bcd1a487638804fc19cd376ecdb63016cbfcb1beb3f1b0"
+
+2026-03-08T18:08:24Z [SIMULATION] Execution finished signal received
+2026-03-08T18:08:24Z [SIMULATION] Skipping WorkflowEngineV2
+2026-03-08T18:08:24Z [WORKFLOW] WorkflowExecutionFinished - Status: SUCCESS
+  WorkflowOwner: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  WorkflowName: bid
+  Version: 2.0.0
+  WorkflowID: 1111111111111111111111111111111111111111111111111111111111111111
+  WorkflowExecutionID: 33317d48575741e79956a801306cdc72f9592f9e7745057a1488ccb2c4022665
+  DonID: 1
+  DonF: 0
+  DonN: 1
+  P2PID: 12D3KooW9pNAk8aiBuGVQtWRdbkLmo5qVL3e2h5UxbN2Nz9ttwiw
+  Trigger: <nil>
+{"level":"debug","claims":{"aud":["https://api.cre.chain.link/","https://cre-production.eu.auth0.com/userinfo"],"azp":"vMqPqJ3ApbeN8jNeA42Dn4UxbkfhQQkW","exp":1772974255,"https://api.cre.chain.link/email":"sameeragarwal1910@gmail.com","https://api.cre.chain.link/email_verified":true,"https://api.cre.chain.link/organization_roles":"ROOT","https://api.cre.chain.link/organization_status":"GATED","iat":1772973355,"iss":"https://login.chain.link/","org_id":"org_tqGe9HUhEFU4ur1n","scope":"openid profile email offline_access","sub":"auth0|699840781a4e059e340a9237"},"time":"2026-03-08T18:08:24+05:30","message":"JWT claims decoded"}
+{"level":"debug","claim_key":"https://api.cre.chain.link/organization_status","organization_status":"GATED","time":"2026-03-08T18:08:24+05:30","message":"checking organization status claim"}
+{"level":"debug","organization_status":"GATED","has_access":false,"time":"2026-03-08T18:08:24+05:30","message":"deployment access status retrieved"}
+
+╭──────────────────────────────────────────────────────╮
+│ Simulation complete! Ready to deploy your workflow?  │
+│                                                      │
+│ Run cre account access to request deployment access. │
+╰──────────────────────────────────────────────────────╯
+{"level":"debug","time":"2026-03-08T18:08:24+05:30","message":"Current version parsed as: 1.3.0"}
+{"level":"debug","time":"2026-03-08T18:08:24+05:30","message":"Loading cache from /Users/sameeragarwal/.cre/update.json"}
+{"level":"debug","time":"2026-03-08T18:08:24+05:30","message":"Cache loaded. Last check: 2026-03-08 00:05:01.039438 +0530 IST, Latest version: v1.3.0"}
+{"level":"debug","time":"2026-03-08T18:08:24+05:30","message":"Using cached latest version: v1.3.0"}
+{"level":"debug","time":"2026-03-08T18:08:24+05:30","message":"Current version 1.3.0 is up-to-date."}
+12:38:25 [Phase F2] Bidder B bid registered on-chain
+12:38:25 [Phase F2] [5/5] Verifying bids registered on-chain
+12:38:25 [Phase F2]   Bid count: 2
+12:38:25 [Phase F2] OK: Both sealed bids submitted
+
+============================================================
+  Phase F3: Vickrey Settlement
+============================================================
+12:38:25 [Phase F3] [1/3] Waiting for auction deadline to pass
+12:38:25 [Phase F3] WAITING: Deadline in 2m 47s (2026-03-08T12:41:12.000Z)
+12:38:55 [Phase F3] WAITING: Deadline in 2m 17s (2026-03-08T12:41:12.000Z)
+12:39:25 [Phase F3] WAITING: Deadline in 1m 47s (2026-03-08T12:41:12.000Z)
+12:39:55 [Phase F3] WAITING: Deadline in 1m 17s (2026-03-08T12:41:12.000Z)
+12:40:25 [Phase F3] WAITING: Deadline in 0m 47s (2026-03-08T12:41:12.000Z)
+12:40:55 [Phase F3] WAITING: Deadline in 0m 17s (2026-03-08T12:41:12.000Z)
+12:41:12 [Phase F3] Auction deadline has passed
+12:41:27 [Phase F3] [2/3] Running CRE settlement workflow
+  CRE CMD: cre workflow simulate ./settlement-workflow --target staging-settings --non-interactive --trigger-index 0 --broadcast --verbose
+Initializing...
+{"level":"debug","client":"GraphQL","time":"2026-03-08T18:11:28+05:30","message":">> variables: map[]"}
+{"level":"debug","client":"GraphQL","time":"2026-03-08T18:11:28+05:30","message":">> query: \nquery GetOrganizationDetails  {\n\tgetOrganization {\n\t\torganizationId\n\t}\n}"}
+{"level":"debug","client":"GraphQL","time":"2026-03-08T18:11:28+05:30","message":">> headers: map[Accept:[application/json; charset=utf-8] Authorization:[[REDACTED]] Content-Type:[application/json; charset=utf-8] User-Agent:[cre-cli]]"}
+{"level":"debug","client":"GraphQL","time":"2026-03-08T18:11:29+05:30","message":"<< {\"data\":{\"getOrganization\":{\"organizationId\":\"org_tqGe9HUhEFU4ur1n\"}}}"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"Target:  staging-settings"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"setting \"logging.seth-config-path\" not found in target \"staging-settings\""}
+Loading settings...
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for ethereum-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for ethereum-testnet-sepolia-base-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for ethereum-mainnet-base-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for avalanche-testnet-fuji; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for avalanche-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for polygon-testnet-amoy; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for polygon-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for binance_smart_chain-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for binance_smart_chain-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for ethereum-testnet-sepolia-arbitrum-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for ethereum-mainnet-arbitrum-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for ethereum-testnet-sepolia-optimism-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for ethereum-mainnet-optimism-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for private-testnet-andesite; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for ethereum-mainnet-zksync-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for ethereum-testnet-sepolia-zksync-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for jovay-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for jovay-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for pharos-atlantic-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for pharos-mainnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for ethereum-testnet-sepolia-worldchain-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for ethereum-mainnet-worldchain-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for plasma-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for ethereum-testnet-sepolia-linea-1; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for ink-testnet-sepolia; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for hyperliquid-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for apechain-testnet-curtis; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for arc-testnet; skipping"}
+{"level":"debug","time":"2026-03-08T18:11:29+05:30","message":"RPC not provided for ethereum-mainnet-xlayer-1; skipping"}
+Checking RPC connectivity...
+Compiling workflow...
+{"level":"debug","time":"2026-03-08T18:11:31+05:30","message":"Workflow compiled"}
+✓ Workflow compiled
+2026-03-08T18:11:32Z [SIMULATION] Simulator Initialized
+
+2026-03-08T18:11:32Z [SIMULATION] Running trigger trigger=cron-trigger@1.0.0
+2026-03-08T18:11:32Z [WORKFLOW] WorkflowExecutionStarted
+  TriggerID: 2026-03-08T12:41:32Z
+  WorkflowOwner: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  WorkflowName: settle
+  Version: 2.0.0
+  WorkflowID: 1111111111111111111111111111111111111111111111111111111111111111
+  WorkflowExecutionID: aa114c7fa5fafc3f1cab5977bb71319d361f1898c8f5c61b69a4631e1c984e41
+  DonID: 1
+  DonF: 0
+  DonN: 1
+  P2PID: 12D3KooW9pNAk8aiBuGVQtWRdbkLmo5qVL3e2h5UxbN2Nz9ttwiw
+  Trigger: <nil>
+2026-03-08T18:11:32Z [SIMULATOR]       step[0]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - STARTED
+2026-03-08T18:11:32Z [SIMULATOR]       step[0]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - COMPLETED
+2026-03-08T18:11:32Z [USER LOG] Active auction detected: 0x1a1e6821cde7d0159c0d293177871e09677b4e42307c7db3ba94f8648a5a050f
+2026-03-08T18:11:32Z [SIMULATOR]       step[1]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - STARTED
+2026-03-08T18:11:32Z [SIMULATOR]       step[1]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - COMPLETED
+2026-03-08T18:11:32Z [SIMULATOR]       step[2]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - STARTED
+2026-03-08T18:11:33Z [SIMULATOR]       step[2]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - COMPLETED
+2026-03-08T18:11:33Z [SIMULATOR]       step[3]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - STARTED
+2026-03-08T18:11:33Z [SIMULATOR]       step[3]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - COMPLETED
+2026-03-08T18:11:33Z [USER LOG] Found 2 on-chain bid hash(es)
+2026-03-08T18:11:33Z [SIMULATOR]       step[0]   Capability: confidential-http@1.0.0-alpha - STARTED
+2026-03-08T18:11:34Z [SIMULATOR]       step[0]   Capability: confidential-http@1.0.0-alpha - COMPLETED
+2026-03-08T18:11:34Z [SIMULATOR]       step[4]   Capability: consensus@1.0.0-alpha - STARTED
+2026-03-08T18:11:34Z [SIMULATOR]       step[4]   Capability: consensus@1.0.0-alpha - COMPLETED
+2026-03-08T18:11:34Z [USER LOG] Settlement result: auctionId=0x1a1e6821cde7d0159c0d293177871e09677b4e42307c7db3ba94f8648a5a050f winner=0x14db2287e7a133ae9edf63ccafcf64b5b61e9c94 price=120000000
+2026-03-08T18:11:34Z [SIMULATOR]       step[5]   Capability: consensus@1.0.0-alpha - STARTED
+2026-03-08T18:11:34Z [SIMULATOR]       step[5]   Capability: consensus@1.0.0-alpha - COMPLETED
+2026-03-08T18:11:34Z [SIMULATOR]       step[6]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - STARTED
+2026-03-08T18:11:36Z [SIMULATOR]       step[6]   Capability: evm:ChainSelector:16015286601757825753@1.0.0 - COMPLETED
+2026-03-08T18:11:36Z [USER LOG] settleAuction submitted: 0x10002c62833a6e25640fc812ed47c588a81259b1fb1e68b0b5d7054f2d6fe59c
+2026-03-08T18:11:36Z [USER LOG] Explorer: https://sepolia.etherscan.io/tx/0x10002c62833a6e25640fc812ed47c588a81259b1fb1e68b0b5d7054f2d6fe59c
+
+✓ Workflow Simulation Result:
+"0x10002c62833a6e25640fc812ed47c588a81259b1fb1e68b0b5d7054f2d6fe59c"
+
+2026-03-08T18:11:36Z [SIMULATION] Execution finished signal received
+2026-03-08T18:11:36Z [SIMULATION] Skipping WorkflowEngineV2
+2026-03-08T18:11:36Z [WORKFLOW] WorkflowExecutionFinished - Status: SUCCESS
+  WorkflowOwner: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  WorkflowName: settle
+  Version: 2.0.0
+  WorkflowID: 1111111111111111111111111111111111111111111111111111111111111111
+  WorkflowExecutionID: aa114c7fa5fafc3f1cab5977bb71319d361f1898c8f5c61b69a4631e1c984e41
+  DonID: 1
+  DonF: 0
+  DonN: 1
+  P2PID: 12D3KooW9pNAk8aiBuGVQtWRdbkLmo5qVL3e2h5UxbN2Nz9ttwiw
+  Trigger: <nil>
+{"level":"debug","claims":{"aud":["https://api.cre.chain.link/","https://cre-production.eu.auth0.com/userinfo"],"azp":"vMqPqJ3ApbeN8jNeA42Dn4UxbkfhQQkW","exp":1772974255,"https://api.cre.chain.link/email":"sameeragarwal1910@gmail.com","https://api.cre.chain.link/email_verified":true,"https://api.cre.chain.link/organization_roles":"ROOT","https://api.cre.chain.link/organization_status":"GATED","iat":1772973355,"iss":"https://login.chain.link/","org_id":"org_tqGe9HUhEFU4ur1n","scope":"openid profile email offline_access","sub":"auth0|699840781a4e059e340a9237"},"time":"2026-03-08T18:11:36+05:30","message":"JWT claims decoded"}
+{"level":"debug","claim_key":"https://api.cre.chain.link/organization_status","organization_status":"GATED","time":"2026-03-08T18:11:36+05:30","message":"checking organization status claim"}
+{"level":"debug","organization_status":"GATED","has_access":false,"time":"2026-03-08T18:11:36+05:30","message":"deployment access status retrieved"}
+
+╭──────────────────────────────────────────────────────╮
+│ Simulation complete! Ready to deploy your workflow?  │
+│                                                      │
+│ Run cre account access to request deployment access. │
+╰──────────────────────────────────────────────────────╯
+{"level":"debug","time":"2026-03-08T18:11:36+05:30","message":"Current version parsed as: 1.3.0"}
+{"level":"debug","time":"2026-03-08T18:11:36+05:30","message":"Loading cache from /Users/sameeragarwal/.cre/update.json"}
+{"level":"debug","time":"2026-03-08T18:11:36+05:30","message":"Cache loaded. Last check: 2026-03-08 00:05:01.039438 +0530 IST, Latest version: v1.3.0"}
+{"level":"debug","time":"2026-03-08T18:11:36+05:30","message":"Using cached latest version: v1.3.0"}
+{"level":"debug","time":"2026-03-08T18:11:36+05:30","message":"Current version 1.3.0 is up-to-date."}
+12:41:36 [Phase F3] CRE settlement workflow completed
+12:41:36 [Phase F3] [3/3] Verifying settlement on-chain
+12:41:37 [Phase F3]   activeAuctionId: cleared (0x00)
+12:41:37 [Phase F3]   Settled: true
+12:41:37 [Phase F3]   Winner: 0x14db...9C94
+12:41:37 [Phase F3]   Settled Price (Vickrey 2nd price): 120 USDC
+12:41:38 [Phase F3]   NFT now owned by: 0x14db...9C94
+12:41:38 [Phase F3]   Loan Status: CLOSED
+12:41:38 [Phase F3] 
+12:41:38 [Phase F3] === SETTLEMENT SUMMARY ===
+12:41:38 [Phase F3]   Winner: 0x14db...9C94 (Bidder A)
+12:41:38 [Phase F3]   Winning bid: 150 USDC (highest)
+12:41:38 [Phase F3]   Price paid: 120 USDC (Vickrey 2nd-price)
+12:41:38 [Phase F3]   PropertyNFT #4 transferred to winner
+12:41:38 [Phase F3]   Loan #4 closed
+12:41:38 [Phase F3] OK: Vickrey auction settled — demo complete!
+
+============================================================
+  DEMO COMPLETE
+============================================================

@@ -200,6 +200,7 @@ const onCronTrigger = (runtime: Runtime<Config>): string => {
 
   const txHash = bytesToHex(writeResult.txHash || new Uint8Array(32))
   runtime.log(`settleAuction submitted: ${txHash}`)
+  runtime.log(`Explorer: https://sepolia.etherscan.io/tx/${txHash}`)
   return txHash
 }
 
