@@ -102,14 +102,6 @@ async function checkPrerequisites(config: any, clients: any) {
     throw new Error("Cannot read MockUSDC contract — check MOCK_USDC_ADDRESS and RPC_URL");
   }
 
-  // Check CRE auth
-  try {
-    await execAsync("cre auth status", { timeout: 10_000 });
-    console.log("  CRE auth: OK");
-  } catch {
-    console.warn("  WARNING: CRE auth check failed. Run 'cre auth login' if workflows fail.");
-  }
-
   // Warm API server
   console.log("  Warming API server...");
   try {

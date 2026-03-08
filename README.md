@@ -601,13 +601,110 @@ Borrower                    API                         CRE Enclave
 
 ---
 
-## Demo
+## Running the Demo
 
-> **Video Walkthrough:** [Coming Soon](#)
->
-> **Deployed Contracts (Sepolia):** [Coming Soon](#)
->
-> **Live API:** [Coming Soon](#)
+The demo script runs the full LienFi lifecycle end-to-end on Sepolia: pool funding → property mint → credit assessment → loan disbursement → repayment → default detection → sealed-bid auction → Vickrey settlement.
+
+### Prerequisites
+
+- Node.js 20+
+- [CRE CLI](https://docs.chain.link/cre/getting-started/cli-installation)
+- 4 Sepolia wallets funded with ~0.05 ETH each (lender, borrower, bidder A, bidder B)
+- [Plaid](https://dashboard.plaid.com/) sandbox credentials (free signup)
+
+### 1. Set up the demo environment
+
+```bash
+cd demo
+npm install
+cp .env.example .env
+```
+
+Edit `demo/.env` — the following are **pre-configured** and ready to use:
+
+| Variable | Value |
+|----------|-------|
+| `RPC_URL` | `https://ethereum-sepolia-rpc.publicnode.com` |
+| `API_URL` | `https://lienfi.onrender.com` |
+| `API_KEY` | `33ab8800ae775f6b302118a9f9811bf77d4633450ee690e27afcd2eb4a33cc25` |
+| `MOCK_USDC_ADDRESS` | `0xFa5B0cF5301C6263Df3F39624984BC9aE918faA3` |
+| `LENDING_POOL_ADDRESS` | `0x87BcBc638d700bb91b36B8607cB4d22dcD4c8A61` |
+| `LOAN_MANAGER_ADDRESS` | `0x11B0a5D5B1A922a46C17C21Fb4cb6A8559C3076F` |
+| `PROPERTY_NFT_ADDRESS` | `0x30D49451E729756627A085a9ee0bc2A0eE2F2806` |
+| `LIENFI_AUCTION_ADDRESS` | `0xffE7cE1f9C1624c6419FDd9E9d3A57d95E36DAa6` |
+| `CL_USDC_ADDRESS` | `0x9eCf84eC8EB63BCFD9DD3B487D6935d9Cc319019` |
+
+You **must** set these yourself:
+
+| Variable | How to get it |
+|----------|---------------|
+| `LENDER_PRIVATE_KEY` | Sepolia wallet private key (0x-prefixed, 64 hex chars) |
+| `BORROWER_PRIVATE_KEY` | Different Sepolia wallet |
+| `BIDDER_A_PRIVATE_KEY` | Different Sepolia wallet |
+| `BIDDER_B_PRIVATE_KEY` | Different Sepolia wallet |
+| `PLAID_CLIENT_ID` | From [Plaid Dashboard](https://dashboard.plaid.com/) (sandbox) |
+| `PLAID_SECRET` | From Plaid Dashboard (sandbox secret) |
+
+### 2. Set up the CRE workflow environment
+
+The demo invokes CRE workflows for credit assessment, bid submission, default detection, and settlement. You need to configure the CRE environment:
+
+```bash
+cd cre-workflows
+cp .env.example .env
+```
+
+Edit `cre-workflows/.env` — the API key is **pre-configured**:
+
+```env
+MY_API_KEY_ALL=33ab8800ae775f6b302118a9f9811bf77d4633450ee690e27afcd2eb4a33cc25
+```
+
+You **must** set these yourself:
+
+| Variable | How to get it |
+|----------|---------------|
+| `AES_KEY_ALL` | 32-byte hex AES-GCM encryption key (`openssl rand -hex 32`) |
+| `GROQ_API_KEY_ALL` | From [Groq Console](https://console.groq.com/) |
+| `PLAID_SECRET_ALL` | Same Plaid sandbox secret as demo |
+| `PLAID_CLIENT_ID_ALL` | Same Plaid client ID as demo |
+
+### 3. Run the demo
+
+```bash
+cd demo
+
+# Run all phases (A through F3)
+npm run demo
+
+# Start fresh (clear checkpoint and run from the beginning)
+npm run demo:fresh
+
+# Resume from a specific phase
+npm run demo:from -- e
+
+# Run a single phase
+npx tsx src/main.ts --phase f2
+```
+
+> **First run?** Use `npm run demo:fresh` to ensure a clean start.
+
+The demo uses a checkpoint file (`demo/checkpoint.json`) to track progress. If a phase fails, fix the issue and re-run — it will resume from where it left off. Use `npm run demo:fresh` to clear the checkpoint and start over.
+
+### Demo Phases
+
+| Phase | Description | Duration |
+|-------|------------|----------|
+| **A** | Pool Funding — lender deposits USDC, receives clUSDC | ~30s |
+| **B** | Property Mint — borrower verifies property, mints NFT | ~30s |
+| **C** | Credit Assessment — loan request → CRE → Plaid + AI scoring | ~2min |
+| **D** | Loan Disbursement — NFT locked, USDC disbursed | ~30s |
+| **E** | Repayment + Default — 1 EMI paid, then wait for default detection | ~8min |
+| **F1** | Default Auction — CRE detects default, creates auction | ~1min |
+| **F2** | Sealed Bidding — two bidders deposit + submit sealed bids | ~2min |
+| **F3** | Vickrey Settlement — CRE settles auction, winner gets NFT | ~1min |
+
+> See [`demo/sample-output.txt`](demo/sample-output.txt) for a full example of what the demo output looks like.
 
 ---
 
