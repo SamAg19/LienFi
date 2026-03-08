@@ -28,6 +28,10 @@ post_line "▶ CRE cron simulation started: $WORKFLOW_DIR"
 post_line "  log-key: $LOG_KEY"
 post_line "---"
 
+# Capture CRE output so we can extract the forwarder broadcast tx hash after
+TMPOUT=$(mktemp /tmp/cre-output-XXXXXX.txt)
+trap 'rm -f "$TMPOUT"' EXIT
+
 # Run the CRE simulation (cron-triggered — no evm-tx-hash needed)
 cre workflow simulate "$WORKFLOW_DIR" \
   --target staging-settings \
@@ -35,7 +39,7 @@ cre workflow simulate "$WORKFLOW_DIR" \
   --trigger-index 0 \
   --broadcast \
   --verbose \
-  "$@" 2>&1 | while IFS= read -r line; do
+  "$@" 2>&1 | tee "$TMPOUT" | while IFS= read -r line; do
     echo "$line"
     clean=$(echo "$line" | sed 's/\x1b\[[0-9;]*m//g')
     post_line "$clean"
@@ -44,6 +48,11 @@ done
 EXIT_CODE=${PIPESTATUS[0]}
 
 if [ "$EXIT_CODE" -eq 0 ]; then
+  # Extract forwarder broadcast tx hash — the last 0x{64} hash in CRE output
+  REPORT_TX=$(sed 's/\x1b\[[0-9;]*m//g' "$TMPOUT" | grep -oE '0x[a-fA-F0-9]{64}' | tail -1)
+  if [ -n "$REPORT_TX" ]; then
+    post_line "REPORT_TX:$REPORT_TX"
+  fi
   post_line "---"
   post_line "✓ CRE simulation completed successfully"
 else

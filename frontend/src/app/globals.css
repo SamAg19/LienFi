@@ -118,7 +118,7 @@ body {
   box-shadow: 2px 2px 0px #0D0D0D;
 }
 .nb-btn.lime {
-  background: #C8F135;
+  background: #EEF5D8;
   color: #0D0D0D;
 }
 .nb-btn.ghost {
@@ -168,12 +168,12 @@ body {
   box-shadow: 2px 2px 0px #0D0D0D;
   display: inline-block;
 }
-.nb-tag.live    { background: #FF8A80; color: #0D0D0D; }
-.nb-tag.sealed  { background: #A8D8FF; color: #0D0D0D; }
-.nb-tag.active  { background: #C8F135; color: #0D0D0D; }
-.nb-tag.default { background: #FFB4A0; color: #0D0D0D; }
-.nb-tag.settled { background: #A8F0D8; color: #0D0D0D; }
-.nb-tag.approved{ background: #C8F135; color: #0D0D0D; }
+.nb-tag.live    { background: #F5D6D2; color: #0D0D0D; }
+.nb-tag.sealed  { background: #D8ECFA; color: #0D0D0D; }
+.nb-tag.active  { background: #EEF5D8; color: #0D0D0D; }
+.nb-tag.default { background: #F5E0DA; color: #0D0D0D; }
+.nb-tag.settled { background: #D8F0E6; color: #0D0D0D; }
+.nb-tag.approved{ background: #EEF5D8; color: #0D0D0D; }
 
 /* ── Typography ── */
 .display-title {

@@ -137,7 +137,7 @@ export default function AuctionsPage() {
           {/* Auction card — span 2 cols */}
           <div className="lg:col-span-2">
             <Link href={`/auctions/${activeAuctionId}`}>
-              <GlassCard accent={isSettled ? "mint" : "lavender"}>
+              <GlassCard accent={isSettled ? "mint" : "sky"}>
                 <GlassCardHeader>
                   <div className="flex items-center gap-3">
                     <div
@@ -294,7 +294,7 @@ export default function AuctionsPage() {
             <AuctionStep
               step="1"
               title="Deposit to Pool"
-              description="Deposit USDC to become eligible to bid. Funds are locked until auction settles. This proves solvency without revealing intent."
+              description="Deposit USDC to the auction pool. Funds are locked until auction settles. This proves solvency without revealing intent."
               icon={<DollarSign className="w-4 h-4" style={{ color: '#0D0D0D' }} />}
               accent="#A8D8FF"
             />
@@ -333,8 +333,8 @@ export default function AuctionsPage() {
         />
         <PrivacyFeature
           icon={<Shield className="w-4 h-4" style={{ color: '#0D0D0D' }} />}
-          title="Solvency Proof"
-          description="Each bidder must deposit USDC before bidding. Funds are locked until settlement — proves solvency without revealing bid intent."
+          title="Pool-Locked Deposits"
+          description="Deposited USDC is locked until the auction settles. This proves solvency without revealing bid intent to other participants."
           accent="#A8F0D8"
         />
         <PrivacyFeature

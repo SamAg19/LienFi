@@ -105,74 +105,112 @@ export default function BorrowPage() {
       return
     }
 
-    // No NFT — check localStorage for step 1-2 progress
-    if (saved?.tokenId && saved?.metadataHash) {
-      setWizardData(saved as typeof wizardData)
-      setStep(2) // Verified but not yet minted
-    } else {
-      setStep(1)
-    }
+    // No NFT and no on-chain state → previous loan was completed/auctioned
+    // Clear stale wizard data and start fresh
+    if (saved) clearWizardData(address)
+    setStep(1)
   }, [address, borrower.isLoading, borrower.hasActiveLoan, borrower.approval?.exists, borrower.hasPendingRequest, nftBalance])
 
   if (!address) {
     return (
-      <div>
-        <h1 className="display-title" style={{ marginTop: '16px' }}>Borrow</h1>
-        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', color: '#3D3D3D', marginTop: '8px' }}>Connect your wallet to start borrowing.</p>
+      <div style={{ maxWidth: 960, margin: '0 auto', textAlign: 'center', paddingTop: 60 }}>
+        <h1 className="display-title">Borrow</h1>
+        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', color: '#888880', marginTop: '8px' }}>Connect your wallet to start borrowing.</p>
       </div>
     )
   }
 
-  return (
-    <div className="space-y-6">
-      <h1 className="display-title" style={{ marginTop: '16px' }}>Borrow</h1>
-      <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', color: '#3D3D3D', marginTop: '-8px' }}>
-        Lock property NFT as collateral, get USDC. Credit assessed privately in CRE enclave.
-      </p>
+  const STEP_COLORS = ['#E4DDF5', '#D8ECFA', '#F5EDD6', '#D8F0E6', '#F5E0DA']
 
-      {/* Step indicator — neubrutalism tab bar */}
-      <div className="flex items-center gap-1">
-        {STEPS.map((s) => {
+  return (
+    <div className="space-y-6" style={{ maxWidth: 960, margin: '0 auto' }}>
+      <div style={{ textAlign: 'center', marginTop: 16 }}>
+        <h1 className="display-title">Borrow</h1>
+        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', color: '#888880', marginTop: 4 }}>
+          Lock property NFT as collateral, get USDC.
+        </p>
+      </div>
+
+      {/* Step indicator — connected dots with labels */}
+      <div className="flex items-center" style={{ padding: '0 20px' }}>
+        {STEPS.map((s, i) => {
           const Icon = s.icon
           const isActive = s.num === step
           const isDone = s.num < step
+          const accent = STEP_COLORS[i]
           return (
-            <div
-              key={s.num}
-              className="flex-1 flex items-center justify-center gap-2 py-3"
-              style={{
-                border: '2px solid #0D0D0D',
-                borderRadius: '4px',
-                background: isActive ? '#C8F135' : isDone ? '#A8F0D8' : '#FAFAF7',
-                boxShadow: isActive ? '4px 4px 0px #0D0D0D' : '2px 2px 0px #0D0D0D',
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: '12px',
-                fontWeight: isActive ? 700 : 500,
-                color: '#0D0D0D',
-              }}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">{s.label}</span>
+            <div key={s.num} className="flex items-center" style={{ flex: 1 }}>
+              <div className="flex flex-col items-center" style={{ flex: '0 0 auto', position: 'relative' }}>
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: '50%',
+                    border: `2.5px solid #0D0D0D`,
+                    background: isActive ? accent : isDone ? accent : '#FAFAF7',
+                    boxShadow: isActive ? `3px 3px 0px #0D0D0D` : isDone ? '2px 2px 0px #0D0D0D' : '1px 1px 0px #0D0D0D',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: isDone ? 0.7 : 1,
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  {isDone ? (
+                    <CheckCircle className="w-4 h-4" style={{ color: '#0D0D0D' }} />
+                  ) : (
+                    <Icon className="w-4 h-4" style={{ color: '#0D0D0D' }} />
+                  )}
+                </div>
+                <span
+                  style={{
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontSize: 11,
+                    fontWeight: isActive ? 700 : 500,
+                    color: isActive ? '#0D0D0D' : '#888880',
+                    marginTop: 6,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {s.label}
+                </span>
+              </div>
+              {i < STEPS.length - 1 && (
+                <div
+                  style={{
+                    flex: 1,
+                    height: 3,
+                    background: isDone ? '#0D0D0D' : '#D6D2C8',
+                    borderRadius: 2,
+                    margin: '0 8px',
+                    marginBottom: 20,
+                    transition: 'background 0.2s ease',
+                  }}
+                />
+              )}
             </div>
           )
         })}
       </div>
 
-      {step === 1 && <StepVerifyProperty onComplete={(data) => { updateWizardData(data); setStep(2) }} />}
-      {step === 2 && <StepMintNFT data={wizardData} onComplete={() => setStep(3)} />}
-      {step === 3 && (
-        <StepRequestLoan
-          data={wizardData}
-          address={address}
-          hasPendingRequest={borrower.hasPendingRequest}
-          approval={borrower.approval}
-          onApproved={(requestHash) => { updateWizardData({ ...wizardData, requestHash }); setStep(4) }}
-          refetch={borrower.refetch}
-          updateWizardData={updateWizardData}
-        />
-      )}
-      {step === 4 && <StepClaimLoan approval={borrower.approval!} refetch={borrower.refetch} onComplete={() => { if (address) clearWizardData(address); setStep(5) }} />}
-      {step === 5 && <StepRepay loan={loan} loanId={borrower.activeLoanId!} refetchLoan={refetchLoan} />}
+      {/* Step content — centered */}
+      <div>
+        {step === 1 && <StepVerifyProperty onComplete={(data) => { updateWizardData(data); setStep(2) }} />}
+        {step === 2 && <StepMintNFT data={wizardData} onComplete={() => setStep(3)} />}
+        {step === 3 && (
+          <StepRequestLoan
+            data={wizardData}
+            address={address}
+            hasPendingRequest={borrower.hasPendingRequest}
+            approval={borrower.approval}
+            onApproved={(requestHash) => { updateWizardData({ ...wizardData, requestHash }); setStep(4) }}
+            refetch={borrower.refetch}
+            updateWizardData={updateWizardData}
+          />
+        )}
+        {step === 4 && <StepClaimLoan approval={borrower.approval!} refetch={borrower.refetch} onComplete={() => { if (address) clearWizardData(address); setStep(5) }} />}
+        {step === 5 && <StepRepay loan={loan} loanId={borrower.activeLoanId!} refetchLoan={refetchLoan} />}
+      </div>
     </div>
   )
 }
@@ -199,8 +237,8 @@ function StepVerifyProperty({ onComplete }: { onComplete: (data: { tokenId: numb
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <GlassCard hover={false}>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <GlassCard accent="lavender" hover={false}>
         <GlassCardHeader>
           <div className="flex items-center gap-2">
             <FileCheck className="w-4 h-4" style={{ color: '#0D0D0D' }} />
@@ -244,14 +282,14 @@ function StepVerifyProperty({ onComplete }: { onComplete: (data: { tokenId: numb
             <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', color: '#888880', lineHeight: 1.6 }}>
               Property details are verified in the CRE enclave. Only a commitment hash goes on-chain — no personal data is exposed.
             </p>
-            <button onClick={handleVerify} disabled={loading || !propertyId} className="nb-btn lime w-full" style={{ height: '44px' }}>
+            <button onClick={handleVerify} disabled={loading || !propertyId} className="nb-btn w-full" style={{ height: '44px', background: '#E4DDF5', color: '#0D0D0D' }}>
               {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Verifying...</> : "Verify Property"}
             </button>
           </div>
         </GlassCardContent>
       </GlassCard>
 
-      {result?.valid && (
+      {result?.valid ? (
         <GlassCard accent="mint" hover={false}>
           <GlassCardHeader>
             <div className="flex items-center gap-2">
@@ -274,11 +312,17 @@ function StepVerifyProperty({ onComplete }: { onComplete: (data: { tokenId: numb
                 <span className="stat-number" style={{ fontSize: '18px' }}>${Number(result.appraisedValue).toLocaleString()}</span>
               </div>
             </div>
-            <button onClick={() => onComplete({ tokenId: result.tokenId, metadataHash: result.metadataHash, appraisedValue: result.appraisedValue })} className="nb-btn lime w-full" style={{ height: '44px' }}>
+            <button onClick={() => onComplete({ tokenId: result.tokenId, metadataHash: result.metadataHash, appraisedValue: result.appraisedValue })} className="nb-btn w-full" style={{ height: '44px', background: '#D8F0E6', color: '#0D0D0D' }}>
               Continue to Mint NFT <ArrowRight className="w-4 h-4" />
             </button>
           </GlassCardContent>
         </GlassCard>
+      ) : (
+        <div className="hidden lg:flex items-center justify-center" style={{ border: '2px dashed #D6D2C8', borderRadius: 6, padding: 40 }}>
+          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: '#888880', textAlign: 'center' }}>
+            Verification result will appear here
+          </p>
+        </div>
       )}
     </div>
   )
@@ -291,33 +335,35 @@ function StepMintNFT({ data, onComplete }: { data: { metadataHash?: string; toke
   useEffect(() => { if (isSuccess) { toast.success("PropertyNFT minted!"); onComplete() } }, [isSuccess, onComplete])
 
   return (
-    <GlassCard className="max-w-lg" hover={false}>
-      <GlassCardHeader>
-        <div className="flex items-center gap-2">
-          <Coins className="w-4 h-4" style={{ color: '#0D0D0D' }} />
-          <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: 700, color: '#0D0D0D' }}>Mint Property NFT</h2>
-        </div>
-      </GlassCardHeader>
-      <GlassCardContent>
-        <div className="space-y-4">
-          <div className="p-3" style={{ background: '#E6E2D8', border: '2px solid #0D0D0D', borderRadius: '4px', boxShadow: '2px 2px 0px #0D0D0D' }}>
-            <p className="stat-label" style={{ marginBottom: '4px' }}>Commitment Hash</p>
-            <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#3D3D3D', wordBreak: 'break-all' }}>{data.metadataHash}</p>
+    <div style={{ maxWidth: 520, margin: '0 auto' }}>
+      <GlassCard accent="sky" hover={false}>
+        <GlassCardHeader>
+          <div className="flex items-center gap-2">
+            <Coins className="w-4 h-4" style={{ color: '#0D0D0D' }} />
+            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: 700, color: '#0D0D0D' }}>Mint Property NFT</h2>
           </div>
-          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', color: '#888880', lineHeight: 1.6 }}>
-            Creates an ERC-721 token with only a hash on-chain. No metadata, no personal data visible.
-          </p>
-          <button
-            onClick={() => { writeContract({ address: CONTRACTS.PropertyNFT.address, abi: CONTRACTS.PropertyNFT.abi, functionName: "mint", args: [data.metadataHash as `0x${string}`] }) }}
-            disabled={isPending || confirming}
-            className="nb-btn lime w-full"
-            style={{ height: '44px' }}
-          >
-            {isPending ? "Confirm in wallet..." : confirming ? <><Loader2 className="w-4 h-4 animate-spin" /> Minting...</> : "Mint PropertyNFT"}
-          </button>
-        </div>
-      </GlassCardContent>
-    </GlassCard>
+        </GlassCardHeader>
+        <GlassCardContent>
+          <div className="space-y-4">
+            <div className="p-3" style={{ background: '#E6E2D8', border: '2px solid #0D0D0D', borderRadius: '4px', boxShadow: '2px 2px 0px #0D0D0D' }}>
+              <p className="stat-label" style={{ marginBottom: '4px' }}>Commitment Hash</p>
+              <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#3D3D3D', wordBreak: 'break-all' }}>{data.metadataHash}</p>
+            </div>
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', color: '#888880', lineHeight: 1.6 }}>
+              Creates an ERC-721 token with only a hash on-chain. No metadata, no personal data visible.
+            </p>
+            <button
+              onClick={() => { writeContract({ address: CONTRACTS.PropertyNFT.address, abi: CONTRACTS.PropertyNFT.abi, functionName: "mint", args: [data.metadataHash as `0x${string}`] }) }}
+              disabled={isPending || confirming}
+              className="nb-btn w-full"
+              style={{ height: '44px', background: '#D8ECFA', color: '#0D0D0D' }}
+            >
+              {isPending ? "Confirm in wallet..." : confirming ? <><Loader2 className="w-4 h-4 animate-spin" /> Minting...</> : "Mint PropertyNFT"}
+            </button>
+          </div>
+        </GlassCardContent>
+      </GlassCard>
+    </div>
   )
 }
 
@@ -406,7 +452,8 @@ function StepRequestLoan({ data, address, hasPendingRequest, approval, onApprove
 
   if (hasPendingRequest) {
     return (
-      <GlassCard className="max-w-lg" accent="gold" hover={false}>
+      <div style={{ maxWidth: 520, margin: '0 auto' }}>
+      <GlassCard accent="gold" hover={false}>
         <GlassCardHeader>
           <div className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin" style={{ color: '#0D0D0D' }} />
@@ -477,11 +524,13 @@ function StepRequestLoan({ data, address, hasPendingRequest, approval, onApprove
           <p className="stat-label" style={{ marginTop: '16px' }}>Polling every 10s for verdict...</p>
         </GlassCardContent>
       </GlassCard>
+      </div>
     )
   }
 
   return (
-    <GlassCard className="max-w-lg" hover={false}>
+    <div style={{ maxWidth: 520, margin: '0 auto' }}>
+    <GlassCard hover={false}>
       <GlassCardHeader>
         <div className="flex items-center gap-2">
           <CreditCard className="w-4 h-4" style={{ color: '#0D0D0D' }} />
@@ -509,7 +558,7 @@ function StepRequestLoan({ data, address, hasPendingRequest, approval, onApprove
               ))}
             </div>
           </div>
-          <button onClick={handleSubmit} disabled={busy || !amount} className="nb-btn lime w-full" style={{ height: '44px' }}>
+          <button onClick={handleSubmit} disabled={busy || !amount} className="nb-btn w-full" style={{ height: '44px', background: '#F5EDD6', color: '#0D0D0D' }}>
             {phase === "api" ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting to API...</>
               : phase === "approving-nft" ? <><Loader2 className="w-4 h-4 animate-spin" /> Approving NFT (1/2)...</>
               : phase === "submitting-onchain" ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting On-Chain (2/2)...</>
@@ -519,6 +568,7 @@ function StepRequestLoan({ data, address, hasPendingRequest, approval, onApprove
         </div>
       </GlassCardContent>
     </GlassCard>
+    </div>
   )
 }
 
@@ -536,7 +586,8 @@ function StepClaimLoan({ approval, refetch, onComplete }: { approval: { requestH
   }, [isSuccess, refetch, onComplete, approval.approvedLimit, txHash])
 
   return (
-    <GlassCard className="max-w-lg" accent="lime" hover={false}>
+    <div style={{ maxWidth: 520, margin: '0 auto' }}>
+    <GlassCard accent="mint" hover={false}>
       <GlassCardHeader>
         <div className="flex items-center gap-2">
           <CheckCircle className="w-4 h-4" style={{ color: '#0D0D0D' }} />
@@ -570,12 +621,13 @@ function StepClaimLoan({ approval, refetch, onComplete }: { approval: { requestH
           onClick={() => { writeContract({ address: CONTRACTS.LoanManager.address, abi: CONTRACTS.LoanManager.abi, functionName: "claimLoan", args: [approval.requestHash] }) }}
           disabled={isPending || confirming}
           className="nb-btn w-full"
-          style={{ height: '44px', background: '#0D0D0D', color: '#FAFAF7' }}
+          style={{ height: '44px', background: '#D8F0E6', color: '#0D0D0D' }}
         >
           {isPending ? "Confirm in wallet..." : confirming ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</> : "Lock NFT & Claim Loan"}
         </button>
       </GlassCardContent>
     </GlassCard>
+    </div>
   )
 }
 
@@ -614,8 +666,8 @@ function StepRepay({ loan, loanId, refetchLoan }: { loan: { principal: bigint; r
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <GlassCard hover={false}>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <GlassCard accent="peach" hover={false}>
         <GlassCardHeader>
           <div className="flex items-center gap-2">
             <CreditCard className="w-4 h-4" style={{ color: '#0D0D0D' }} />
@@ -669,7 +721,7 @@ function StepRepay({ loan, loanId, refetchLoan }: { loan: { principal: bigint; r
             </div>
           </div>
           {loan.status === 0 && (
-            <button onClick={handleRepay} disabled={isPending || confirming} className="nb-btn lime w-full" style={{ height: '44px' }}>
+            <button onClick={handleRepay} disabled={isPending || confirming} className="nb-btn w-full" style={{ height: '44px', background: '#F5E0DA', color: '#0D0D0D' }}>
               {approving ? "Approving USDC..." : isPending ? "Confirm..." : confirming ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</> : `Pay EMI (${formatUSDC(loan.emiAmount)} USDC)`}
             </button>
           )}

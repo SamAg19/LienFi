@@ -1,6 +1,6 @@
 export const CONTRACTS = {
   MockUSDC: {
-    address: '0x3Ef3f81b24ACB7334C75EAA38a2C132c8eA74656' as `0x${string}`,
+    address: '0xe4070A37F72f7E481abee96b2E5500eddd61EB72' as `0x${string}`,
     abi: [
       {
         name: 'balanceOf',
@@ -50,7 +50,7 @@ export const CONTRACTS = {
   },
 
   clUSDC: {
-    address: '0x40Eb4B08D1Bf9b9dbF0CD5C1825f9507c7484F9E' as `0x${string}`,
+    address: '0x1Bc0D25f2af9B6e261d871b14375966f54FA31E4' as `0x${string}`,
     abi: [
       {
         name: 'balanceOf',
@@ -77,7 +77,7 @@ export const CONTRACTS = {
   },
 
   LendingPool: {
-    address: '0xa2E797b58489B849c8A47413197BC1db2EeEBbD4' as `0x${string}`,
+    address: '0x598F99FC3080Fe3EFD8B71dD453911664FDAc0f9' as `0x${string}`,
     abi: [
       {
         name: 'deposit',
@@ -125,7 +125,7 @@ export const CONTRACTS = {
   },
 
   LoanManager: {
-    address: '0x901e8969F1368A58dbBa84813147e086E2B006DD' as `0x${string}`,
+    address: '0x71C7e3C098F3F45604BaE494aA668c9c96050244' as `0x${string}`,
     abi: [
       {
         name: 'submitRequest',
@@ -219,7 +219,7 @@ export const CONTRACTS = {
   },
 
   PropertyNFT: {
-    address: '0x10e39BcF7c1148FA62d90D40cCFc40D1Bf9F0F35' as `0x${string}`,
+    address: '0x1500888331Db9e587d652A5798B6A38d09c77124' as `0x${string}`,
     abi: [
       {
         name: 'mint',
@@ -270,7 +270,7 @@ export const CONTRACTS = {
   },
 
   LienFiAuction: {
-    address: '0x5f69cbcf902Fd3F01dFD6F297b94C7D779a7544E' as `0x${string}`,
+    address: '0x272e0e7cF2011913854077D65489704283c58809' as `0x${string}`,
     abi: [
       {
         name: 'activeAuctionId',
@@ -337,9 +337,6 @@ export const CONTRACTS = {
           { name: 'token', type: 'address' },
           { name: 'lockUntil', type: 'uint256' },
           { name: 'amount', type: 'uint256' },
-          { name: 'root', type: 'uint256' },
-          { name: 'nullifierHash', type: 'uint256' },
-          { name: 'proof', type: 'uint256[8]' },
         ],
         outputs: [],
       },
@@ -359,3 +356,8 @@ export const CONTRACTS = {
 
 export const ZERO_BYTES32 = '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`
 export const CHAIN_ID = 11155111
+
+// World ID configuration — app_id and rp_id from env (NEXT_PUBLIC_ prefix exposes to browser)
+// Signing key stays server-only (no NEXT_PUBLIC_ prefix) — used in /api/world-id-rp route
+export const WORLD_ID_APP_ID = (process.env.NEXT_PUBLIC_WORLD_ID_APP_ID ?? "app_3ee5ae05bf20ee4564964ee582c85a5c") as `app_${string}`
+export const WORLD_ID_ACTION = "deposit_to_pool"

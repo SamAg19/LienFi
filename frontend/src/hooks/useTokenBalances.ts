@@ -26,6 +26,12 @@ export function useTokenBalances() {
         functionName: "allowance",
         args: [address!, CONTRACTS.LendingPool.address],
       },
+      {
+        address: CONTRACTS.MockUSDC.address,
+        abi: CONTRACTS.MockUSDC.abi,
+        functionName: "allowance",
+        args: [address!, CONTRACTS.LienFiAuction.address],
+      },
     ],
     query: { enabled: !!address, refetchInterval: 8000 },
   })
@@ -34,6 +40,7 @@ export function useTokenBalances() {
     usdcBalance: results.data?.[0]?.result as bigint | undefined,
     clUsdcBalance: results.data?.[1]?.result as bigint | undefined,
     usdcAllowanceLendingPool: results.data?.[2]?.result as bigint | undefined,
+    usdcAllowanceAuction: results.data?.[3]?.result as bigint | undefined,
     isLoading: results.isLoading,
     refetch: results.refetch,
   }
