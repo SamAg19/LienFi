@@ -341,15 +341,17 @@ LienFi is a complete mortgage primitive with no step requiring a bank, appraiser
 
 ## Chainlink Services Used
 
-| Service | Usage | Where |
+| Service | Usage | Files |
 |---------|-------|-------|
-| **CRE Workflow Engine** | 5 workflows orchestrating the entire system — mint, bid, settle, credit assessment, listing generation | All phases |
-| **Confidential HTTP** | Plaid API calls (bank data), Gemini API calls (AI scoring), bid submission, settlement — all inside enclave | Credit assessment, auction |
-| **Vault DON Secrets** | API keys (Plaid, Gemini, bid API) and AES encryption keys stored securely, decrypted only in enclave | All workflows |
-| **Encrypted Output** | AES-GCM encryption of settlement results and credit verdicts before leaving enclave | Settlement, credit |
-| **Log-Based Trigger** | `LoanRequestSubmitted` event auto-triggers credit assessment workflow — no HTTP trigger needed | Credit assessment |
-| **Cron Trigger** | Settlement workflow runs every 30 seconds, checking for expired auctions to settle | Auction settlement |
-| **EVM Read/Write** | On-chain state reads (auction status, pool balances) and DON-signed report submission via KeystoneForwarder | All workflows |
+| **CRE Workflow Engine** | 4 workflows orchestrating the entire system — credit assessment, bid collection, auction creation, Vickrey settlement | [`bid-workflow/main.ts`](cre-workflows/bid-workflow/main.ts) · [`create-auction-workflow/main.ts`](cre-workflows/create-auction-workflow/main.ts) · [`credit-assessment-workflow/main.ts`](cre-workflows/credit-assessment-workflow/main.ts) · [`settlement-workflow/main.ts`](cre-workflows/settlement-workflow/main.ts) |
+| **Confidential HTTP** | Plaid bank data fetch and Groq AI scoring inside the enclave — raw data never leaves | [`credit-assessment-workflow/main.ts`](cre-workflows/credit-assessment-workflow/main.ts) |
+| **Vault DON Secrets** | API keys (Plaid, Groq, bid API) and AES encryption key stored securely, decrypted only inside enclave | [`cre-workflows/.env.example`](cre-workflows/.env.example) · [`secrets.yaml`](cre-workflows/secrets.yaml) |
+| **Encrypted Output** | AES-GCM encryption of settlement results and credit verdicts before leaving enclave | [`settlement-workflow/main.ts`](cre-workflows/settlement-workflow/main.ts) · [`credit-assessment-workflow/main.ts`](cre-workflows/credit-assessment-workflow/main.ts) |
+| **Log-Based Trigger** | `LoanRequestSubmitted` event auto-triggers credit assessment — no manual step | [`credit-assessment-workflow/workflow.yaml`](cre-workflows/credit-assessment-workflow/workflow.yaml) · [`LoanManager.sol`](contracts/src/LoanManager.sol) |
+| **Cron Trigger** | Settlement workflow polls every 30 seconds for expired auctions | [`settlement-workflow/workflow.yaml`](cre-workflows/settlement-workflow/workflow.yaml) · [`create-auction-workflow/workflow.yaml`](cre-workflows/create-auction-workflow/workflow.yaml) |
+| **EVM Read** | On-chain state reads (loan status, auction data, pool balances) inside workflows | [`bid-workflow/main.ts`](cre-workflows/bid-workflow/main.ts) · [`settlement-workflow/main.ts`](cre-workflows/settlement-workflow/main.ts) · [`create-auction-workflow/main.ts`](cre-workflows/create-auction-workflow/main.ts) |
+| **EVM Write (KeystoneForwarder)** | DON-signed report submission delivering credit verdicts, bid hashes, and settlement results on-chain | [`LoanManager.sol`](contracts/src/LoanManager.sol) · [`LienFiAuction.sol`](contracts/src/LienFiAuction.sol) · [`ReceiverTemplate.sol`](contracts/src/ReceiverTemplate.sol) · [`IReceiver.sol`](contracts/src/interfaces/IReceiver.sol) |
+| **CRE Project Config** | RPC endpoints and staging/production target settings | [`project.yaml`](cre-workflows/project.yaml) · [`bid-workflow/config.staging.json`](cre-workflows/bid-workflow/config.staging.json) · [`credit-assessment-workflow/config.staging.json`](cre-workflows/credit-assessment-workflow/config.staging.json) · [`create-auction-workflow/config.staging.json`](cre-workflows/create-auction-workflow/config.staging.json) · [`settlement-workflow/config.staging.json`](cre-workflows/settlement-workflow/config.staging.json) |
 
 ---
 
