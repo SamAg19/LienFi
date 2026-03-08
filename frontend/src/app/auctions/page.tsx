@@ -294,7 +294,7 @@ export default function AuctionsPage() {
             <AuctionStep
               step="1"
               title="Deposit to Pool"
-              description="Deposit USDC with World ID verification. Funds are locked until auction settles. This proves solvency without revealing intent."
+              description="Deposit USDC to become eligible to bid. Funds are locked until auction settles. This proves solvency without revealing intent."
               icon={<DollarSign className="w-4 h-4" style={{ color: '#0D0D0D' }} />}
               accent="#A8D8FF"
             />
@@ -333,8 +333,8 @@ export default function AuctionsPage() {
         />
         <PrivacyFeature
           icon={<Shield className="w-4 h-4" style={{ color: '#0D0D0D' }} />}
-          title="World ID Verified"
-          description="Each bidder must verify uniqueness via World ID before depositing. One person, one deposit — prevents sybil attacks."
+          title="Solvency Proof"
+          description="Each bidder must deposit USDC before bidding. Funds are locked until settlement — proves solvency without revealing bid intent."
           accent="#A8F0D8"
         />
         <PrivacyFeature

@@ -6,7 +6,6 @@ Smart contracts for the LienFi protocol - a privacy-preserving mortgage system o
 
 | Contract | Address |
 |----------|---------|
-| MockWorldIDRouter | `0xA7E7b0F92583f30841e07E96Bcda87Ec83c8B7F1` |
 | MockUSDC | `0x17e822bAF7c8d7e0583103eF01F411BC6E9FA1E2` |
 | PropertyNFT | `0xF9E84941A1D2868CcD1dF95Be040C14C0b7D82cB` |
 | clUSDC | `0xCB155F43443D352771A7E62d8095Fc2bC07844AB` |
@@ -47,12 +46,10 @@ Create a `.env` file with:
 ```env
 PRIVATE_KEY=0x...
 SEPOLIA_RPC_URL=https://...
-WORLD_ID_APP_ID=app_staging_test
 CHAINLINK_FORWARDER_ADDRESS=0x...  # Optional, defaults to deployer
 INTEREST_RATE_BPS=800              # Optional, defaults to 800
 
 # Deployed Contract Addresses (Sepolia)
-MOCK_WORLD_ID_ADDRESS=0xA7E7b0F92583f30841e07E96Bcda87Ec83c8B7F1
 MOCK_USDC_ADDRESS=0x17e822bAF7c8d7e0583103eF01F411BC6E9FA1E2
 PROPERTY_NFT_ADDRESS=0xF9E84941A1D2868CcD1dF95Be040C14C0b7D82cB
 CL_USDC_ADDRESS=0xCB155F43443D352771A7E62d8095Fc2bC07844AB

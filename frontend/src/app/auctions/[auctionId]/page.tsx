@@ -314,7 +314,7 @@ export default function AuctionDetailPage() {
             <LifecycleStep
               num="2"
               title="Sealed Bidding Phase"
-              description="Bidders deposit USDC (World ID verified) then submit EIP-712 signed bids. Amounts are hidden."
+              description="Bidders deposit USDC then submit EIP-712 signed bids. Amounts are hidden."
               done={isExpired || auction.settled}
               active={!isExpired && !auction.settled}
               accent="#C4B5FF"
@@ -513,7 +513,7 @@ function DepositToPoolPanel({
       </GlassCardHeader>
       <GlassCardContent>
         <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', color: '#3D3D3D', marginBottom: '16px', lineHeight: 1.6 }}>
-          Deposit USDC with World ID verification to become eligible to bid. Funds are locked until auction settlement.
+          Deposit USDC to become eligible to bid. Funds are locked until auction settlement.
         </p>
 
         {bidStatus.poolBalance !== undefined && bidStatus.poolBalance > 0n && (

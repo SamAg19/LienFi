@@ -26,8 +26,6 @@ pragma solidity ^0.8.24;
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import {IWorldID} from "./interfaces/IWorldID.sol";
-import {ByteHasher} from "./libraries/ByteHasher.sol";
 import {ReceiverTemplate} from "./ReceiverTemplate.sol";
 import {ILoanManager} from "./interfaces/ILoanManager.sol";
 
@@ -45,7 +43,6 @@ import {ILoanManager} from "./interfaces/ILoanManager.sol";
  * - One ERC-721 per property: the PropertyNFT contract address is set at deploy time.
  *   The NFT must be transferred to this contract before auction creation.
  * - Bid token is always USDC (i_usdc immutable): bidders deposit arbitrary USDC amounts.
- * - World ID integration: pool deposits require ZK proof — one human, one deposit.
  * - Auction lifecycle: CRE-only bid registration and settlement via onReport.
  *   Only opaque bid hashes stored on-chain. Settlement reveals only winner + Vickrey price.
  * - Privacy: bid amounts, bidder identities, and losing bids are never exposed on-chain.
@@ -62,8 +59,6 @@ import {ILoanManager} from "./interfaces/ILoanManager.sol";
  *   settle: abi.encode(bytes32 auctionId, address winner, uint256 price)
  */
 contract LienFiAuction is ReceiverTemplate, ReentrancyGuard {
-    using ByteHasher for bytes;
-
     ///////////////////
     // Workflow Name Constants (bytes10)
     // Encoding: SHA256(name) → 64-char hex string → first 10 hex chars → hex-encode those ASCII chars → bytes10
@@ -78,7 +73,6 @@ contract LienFiAuction is ReceiverTemplate, ReentrancyGuard {
     ///////////////////
     // Errors
     ///////////////////
-    error LienFiAuction__InvalidNullifier();
     error LienFiAuction__TokenNotAccepted();
     error LienFiAuction__InvalidAmount();
     error LienFiAuction__LockMustBeInFuture();
@@ -115,12 +109,8 @@ contract LienFiAuction is ReceiverTemplate, ReentrancyGuard {
     ///////////////////
     // State Variables
     ///////////////////
-    IWorldID public immutable i_worldId;
     address public immutable i_usdc;
     address public immutable i_propertyNFT;
-    uint256 public immutable i_groupId = 1;
-    uint256 public immutable i_depositExternalNullifierHash;
-    mapping(uint256 => bool) public nullifierHashes;
 
     // Deposit Pool — USDC accepted for bidding
     mapping(address => bool) public acceptedTokens;
@@ -178,21 +168,10 @@ contract LienFiAuction is ReceiverTemplate, ReentrancyGuard {
     constructor(
         address _forwarder,
         address _usdc,
-        address _propertyNFT,
-        IWorldID _worldId,
-        string memory _appId,
-        string memory _depositAction
+        address _propertyNFT
     ) ReceiverTemplate(_forwarder) {
         i_usdc = _usdc;
         i_propertyNFT = _propertyNFT;
-        i_worldId = _worldId;
-
-        i_depositExternalNullifierHash = abi
-            .encodePacked(
-                abi.encodePacked(_appId).hashToField(),
-                _depositAction
-            )
-            .hashToField();
 
         // USDC accepted for pool deposits (bidding collateral)
         acceptedTokens[_usdc] = true;
@@ -205,10 +184,7 @@ contract LienFiAuction is ReceiverTemplate, ReentrancyGuard {
     function depositToPool(
         address token,
         uint256 lockUntil,
-        uint256 amount,
-        uint256 root,
-        uint256 nullifierHash,
-        uint256[8] calldata proof
+        uint256 amount
     ) external {
         if (!acceptedTokens[token]) {
             revert LienFiAuction__TokenNotAccepted();
@@ -219,20 +195,6 @@ contract LienFiAuction is ReceiverTemplate, ReentrancyGuard {
         if (lockUntil <= block.timestamp) {
             revert LienFiAuction__LockMustBeInFuture();
         }
-        if (nullifierHashes[nullifierHash]) {
-            revert LienFiAuction__InvalidNullifier();
-        }
-
-        i_worldId.verifyProof(
-            root,
-            i_groupId,
-            abi.encodePacked(msg.sender).hashToField(),
-            nullifierHash,
-            i_depositExternalNullifierHash,
-            proof
-        );
-
-        nullifierHashes[nullifierHash] = true;
 
         if (!IERC20(token).transferFrom(msg.sender, address(this), amount)) {
             revert LienFiAuction__TransferFailed();

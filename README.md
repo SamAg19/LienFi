@@ -12,7 +12,6 @@
 <p align="center">
   <a href="#"><img src="https://img.shields.io/badge/Built%20with-Chainlink%20CRE-375BD2?style=for-the-badge&logo=chainlink&logoColor=white" /></a>
   <a href="#"><img src="https://img.shields.io/badge/Credit-Plaid%20%2B%20Gemini-00D632?style=for-the-badge" /></a>
-  <a href="#"><img src="https://img.shields.io/badge/Identity-World%20ID-000000?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyIiByPSIxMCIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyIi8+PC9zdmc+&logoColor=white" /></a>
   <a href="#"><img src="https://img.shields.io/badge/Network-Sepolia-6C5CE7?style=for-the-badge&logo=ethereum&logoColor=white" /></a>
   <a href="#"><img src="https://img.shields.io/badge/Hackathon-Chainlink%20Convergence-blue?style=for-the-badge" /></a>
 </p>
@@ -41,7 +40,6 @@ DeFi lending today requires **overcollateralization** because protocols have no 
 | **No private credit scoring** | Borrowers must reveal income, bank history, and debt ratios publicly — or protocols skip underwriting entirely and demand 150%+ collateral |
 | **Transparent liquidation auctions** | Bid amounts are public (competitors snipe), bidder identities are exposed (privacy leak), losing bidders are visible (reputational risk) |
 | **No property data privacy** | Tokenized real estate exposes street addresses, appraisal values, and owner identities on-chain forever |
-| **Sybil-vulnerable auctions** | A single entity can create hundreds of wallets to manipulate liquidation outcomes |
 
 For tokenized real estate worth hundreds of thousands, these aren't inconveniences — they're dealbreakers.
 
@@ -70,7 +68,6 @@ LienFi is a complete mortgage primitive with no step requiring a bank, appraiser
 - **Privacy-Preserving Property NFTs** — ERC-721 with only a commitment hash on-chain. No tokenURI, no metadata. Full details stored exclusively in the CRE enclave.
 - **Passive Yield for Lenders** — clUSDC exchange rate model (same as Compound cTokens). Pool USDC grows as EMIs come in, each clUSDC redeems for more. No staking, no claiming.
 - **Sealed-Bid Vickrey Auctions** — Bid amounts exist only inside the CRE enclave. On-chain: only opaque bid hashes. Winner pays second-highest price. Losing bids and bidders are never revealed.
-- **World ID Sybil Resistance** — On-chain ZK proof verification. One human, one deposit. No fake accounts manipulating auctions.
 - **Event-Driven Assessment Pipeline** — `LoanRequestSubmitted` event auto-triggers the entire credit assessment. No manual CRE trigger, no separate oracle — one coherent system.
 - **Sanitized Listings** — Default auctions show property type, neighborhood, size — but never the street address, owner identity, or reason for sale. Winner gets full details post-settlement only.
 
@@ -213,7 +210,7 @@ LienFi is a complete mortgage primitive with no step requiring a bank, appraiser
                     v
   Bidders view sanitized listing
                     |
-  Bidder --> depositToPool(USDC, lockUntil) + World ID ZK proof
+  Bidder --> depositToPool(USDC, lockUntil)
   Bidder --> POST /bid { auctionId, amount, signature } via CRE
                     |
                     v  (Confidential HTTP -- bid stays private)
@@ -282,7 +279,7 @@ LienFi is a complete mortgage primitive with no step requiring a bank, appraiser
 | **LoanManager** | Core contract — owns the full mortgage lifecycle from origination through repayment to liquidation |
 | **LendingPool** | Holds USDC, disburses loans, receives EMI repayments, manages clUSDC exchange rate |
 | **PropertyNFT** | ERC-721 — one token per property, commitment hash only, no metadata on-chain |
-| **LienFiAuction** | Sealed-bid Vickrey auction for defaulted properties — deposit pool, World ID, opaque bid hashes |
+| **LienFiAuction** | Sealed-bid Vickrey auction for defaulted properties — deposit pool, opaque bid hashes |
 
 ---
 
@@ -306,7 +303,6 @@ LienFi is a complete mortgage primitive with no step requiring a bank, appraiser
 - Multi-token obfuscation — USDC deposits carry no auction reference, observers can't link deposits to specific auctions
 - API credentials decrypted only inside CRE enclave — never exposed to any party
 - Settlement responses AES-GCM encrypted before leaving enclave
-- World ID ZK proofs — identity verified without revealing who you are
 - PropertyNFT has no `tokenURI` — zero on-chain metadata leakage
 
 ---
@@ -315,9 +311,8 @@ LienFi is a complete mortgage primitive with no step requiring a bank, appraiser
 
 | Contract | Purpose |
 |----------|---------|
-| **LienFiAuction.sol** | Core auction + deposit pool + World ID sybil resistance + opaque bid hash storage + Vickrey settlement via CRE |
+| **LienFiAuction.sol** | Core auction + deposit pool + opaque bid hash storage + Vickrey settlement via CRE |
 | **LienFiRWAToken.sol** | ERC-20 RWA token with restricted minting (to be replaced by PropertyNFT) |
-| **MockWorldIDRouter.sol** | Always-passing World ID mock for testing |
 | **MockUSDC.sol** | Test USDC token (6 decimals) with public mint |
 | **ReceiverTemplate.sol** | Abstract base for receiving Keystone CRE DON-signed reports |
 | **LoanManager.sol** | Full mortgage lifecycle — request anchoring, CRE verdict receiver, loan origination, repayment tracking, default triggering, auction settlement callback |
@@ -361,7 +356,6 @@ LienFi is a complete mortgage primitive with no step requiring a bank, appraiser
 |-------|-----------|---------|
 | **Smart Contracts** | Solidity 0.8.24 + Foundry | LoanManager, LendingPool, LienFiAuction, PropertyNFT, clUSDC |
 | **Contract Libraries** | OpenZeppelin | ERC-20, ERC-721, Ownable, ReentrancyGuard |
-| **Identity** | World ID (Worldcoin) | On-chain ZK proof verification, sybil resistance |
 | **Confidential Compute** | Chainlink CRE | 5 workflows — mint, bid, settle, credit assessment, listing |
 | **Credit Data** | Plaid API (Sandbox) | Bank account data, transaction history, income verification |
 | **AI Scoring** | Google Gemini | Credit scoring from pre-processed financial metrics |
@@ -530,7 +524,7 @@ The full LienFi system is implemented and deployed on Sepolia across two environ
 
 | Contract | Description | Status |
 |----------|-------------|--------|
-| `LienFiAuction.sol` | Deposit pool, World ID sybil resistance, opaque bid hashes, Vickrey settlement | Deployed |
+| `LienFiAuction.sol` | Deposit pool, opaque bid hashes, Vickrey settlement | Deployed |
 | `LoanManager.sol` | Full mortgage lifecycle — loan origination, CRE verdict receiver, repayment tracking, default triggering, auction settlement callback | Deployed |
 | `LendingPool.sol` | USDC pool — lender deposits, loan disbursement, EMI collection | Deployed |
 | `clUSDC.sol` | Receipt token with appreciating exchange rate (Compound cToken model) | Deployed |
@@ -602,7 +596,7 @@ The system has two separate deployments — one for the frontend demo with longe
 lienfi/
 ├── contracts/                           # Solidity smart contracts (Foundry)
 │   ├── src/
-│   │   ├── LienFiAuction.sol           # Auction: deposit pool + World ID + sealed bids + Vickrey
+│   │   ├── LienFiAuction.sol           # Auction: deposit pool + sealed bids + Vickrey
 │   │   ├── LienFiRWAToken.sol          # ERC-20 RWA token (legacy)
 │   │   ├── LoanManager.sol             # Full mortgage lifecycle + CRE verdict receiver
 │   │   ├── LendingPool.sol             # USDC pool — disburse, EMI collection
@@ -616,11 +610,8 @@ lienfi/
 │   │   │   ├── ILoanManager.sol
 │   │   │   ├── IPropertyNFT.sol
 │   │   │   ├── IReceiver.sol
-│   │   │   └── IWorldID.sol
 │   │   ├── libraries/
-│   │   │   └── ByteHasher.sol          # World ID field hashing
 │   │   └── mocks/
-│   │       ├── MockWorldIDRouter.sol   # Always-pass World ID for testing
 │   │       └── MockUSDC.sol            # 6-decimal test USDC
 │   ├── script/
 │   │   └── DeployLienFi.s.sol         # Full deployment + wiring script
@@ -873,5 +864,5 @@ MIT License — see [LICENSE](./LICENSE) for details.
 
 <p align="center">
   <i>Built for the Chainlink Convergence Hackathon 2025</i><br/>
-  <i>Powered by <a href="https://chain.link">Chainlink CRE</a> &bull; Credit via <a href="https://plaid.com">Plaid</a> + <a href="https://ai.google.dev">Gemini</a> &bull; Identity via <a href="https://worldcoin.org">World ID</a> &bull; Deployed on <a href="https://sepolia.etherscan.io">Sepolia</a></i>
+  <i>Powered by <a href="https://chain.link">Chainlink CRE</a> &bull; Credit via <a href="https://plaid.com">Plaid</a> + <a href="https://ai.google.dev">Gemini</a> &bull; Deployed on <a href="https://sepolia.etherscan.io">Sepolia</a></i>
 </p>
