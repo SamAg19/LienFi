@@ -1,6 +1,6 @@
 export const CONTRACTS = {
   MockUSDC: {
-    address: '0x01B0c64c7814026aEDA8d9fBA4d5acE5b6cA61c8' as `0x${string}`,
+    address: '0x9771d5745a9aF03f2e7eFA8aad7943e6D500F722' as `0x${string}`,
     abi: [
       {
         name: 'balanceOf',
@@ -50,7 +50,7 @@ export const CONTRACTS = {
   },
 
   clUSDC: {
-    address: '0x8cBdB583eE8D2203C2992E61DD2B87745AE45F94' as `0x${string}`,
+    address: '0xFb1801bF2EB14F9c6E3D1F7c5e72167Ef76080B0' as `0x${string}`,
     abi: [
       {
         name: 'balanceOf',
@@ -77,7 +77,7 @@ export const CONTRACTS = {
   },
 
   LendingPool: {
-    address: '0x2013484dA7661003BdeC663f927a1D80452eAe79' as `0x${string}`,
+    address: '0xA160CDD6F6652dbcdBa1d8dFa1Bf52DCBB95771c' as `0x${string}`,
     abi: [
       {
         name: 'deposit',
@@ -125,7 +125,7 @@ export const CONTRACTS = {
   },
 
   LoanManager: {
-    address: '0x772acD462388bfa41AB14458251C88C0A8F768C5' as `0x${string}`,
+    address: '0xf2739669965979B886df2A2187Fd284484AfB710' as `0x${string}`,
     abi: [
       {
         name: 'submitRequest',
@@ -219,7 +219,7 @@ export const CONTRACTS = {
   },
 
   PropertyNFT: {
-    address: '0x7Fc44b0437680A8Ba830f195a59a26128367b7E4' as `0x${string}`,
+    address: '0xA403E4A10b5EA1Fd981DE61d6fF57b8Fc18A14E2' as `0x${string}`,
     abi: [
       {
         name: 'mint',
@@ -270,7 +270,7 @@ export const CONTRACTS = {
   },
 
   LienFiAuction: {
-    address: '0x1141A9eC32114f91a2C7194963C6eC8F0e24E145' as `0x${string}`,
+    address: '0xFC3E4Bd8793316D2345ad67ff9322bbE62755DE2' as `0x${string}`,
     abi: [
       {
         name: 'activeAuctionId',

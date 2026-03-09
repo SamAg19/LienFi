@@ -568,12 +568,12 @@ The system has two separate deployments — one for the frontend demo with longe
 
 | Contract | Address |
 |----------|---------|
-| MockUSDC | [`0x3Ef3f81b24ACB7334C75EAA38a2C132c8eA74656`](https://sepolia.etherscan.io/address/0x3Ef3f81b24ACB7334C75EAA38a2C132c8eA74656) |
-| clUSDC | [`0x40Eb4B08D1Bf9b9dbF0CD5C1825f9507c7484F9E`](https://sepolia.etherscan.io/address/0x40Eb4B08D1Bf9b9dbF0CD5C1825f9507c7484F9E) |
-| LendingPool | [`0xa2E797b58489B849c8A47413197BC1db2EeEBbD4`](https://sepolia.etherscan.io/address/0xa2E797b58489B849c8A47413197BC1db2EeEBbD4) |
-| LoanManager | [`0x901e8969F1368A58dbBa84813147e086E2B006DD`](https://sepolia.etherscan.io/address/0x901e8969F1368A58dbBa84813147e086E2B006DD) |
-| PropertyNFT | [`0x10e39BcF7c1148FA62d90D40cCFc40D1Bf9F0F35`](https://sepolia.etherscan.io/address/0x10e39BcF7c1148FA62d90D40cCFc40D1Bf9F0F35) |
-| LienFiAuction | [`0x5f69cbcf902Fd3F01dFD6F297b94C7D779a7544E`](https://sepolia.etherscan.io/address/0x5f69cbcf902Fd3F01dFD6F297b94C7D779a7544E) |
+| MockUSDC | [`0x9771d5745a9aF03f2e7eFA8aad7943e6D500F722`](https://sepolia.etherscan.io/address/0x9771d5745a9aF03f2e7eFA8aad7943e6D500F722) |
+| clUSDC | [`0xFb1801bF2EB14F9c6E3D1F7c5e72167Ef76080B0`](https://sepolia.etherscan.io/address/0xFb1801bF2EB14F9c6E3D1F7c5e72167Ef76080B0) |
+| LendingPool | [`0xA160CDD6F6652dbcdBa1d8dFa1Bf52DCBB95771c`](https://sepolia.etherscan.io/address/0xA160CDD6F6652dbcdBa1d8dFa1Bf52DCBB95771c) |
+| LoanManager | [`0xf2739669965979B886df2A2187Fd284484AfB710`](https://sepolia.etherscan.io/address/0xf2739669965979B886df2A2187Fd284484AfB710) |
+| PropertyNFT | [`0xA403E4A10b5EA1Fd981DE61d6fF57b8Fc18A14E2`](https://sepolia.etherscan.io/address/0xA403E4A10b5EA1Fd981DE61d6fF57b8Fc18A14E2) |
+| LienFiAuction | [`0xFC3E4Bd8793316D2345ad67ff9322bbE62755DE2`](https://sepolia.etherscan.io/address/0xFC3E4Bd8793316D2345ad67ff9322bbE62755DE2) |
 
 ### Demo Script Deployment
 
